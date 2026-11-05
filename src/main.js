@@ -1,35 +1,386 @@
+// 119 FIRE HERO — 소방관 미션 RPG (메인 게임 루프)
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import './style.css';
-const $=id=>document.getElementById(id);
-const scene=new THREE.Scene();scene.background=new THREE.Color('#8298a5');scene.fog=new THREE.FogExp2('#8396a1',.009);
-const camera=new THREE.PerspectiveCamera(63,innerWidth/innerHeight,.1,450);
-const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.3;$('game').append(renderer.domElement);
-scene.add(new THREE.HemisphereLight(0xd7e9ff,0x3e4442,2.1));const sun=new THREE.DirectionalLight(0xffdfb5,3);sun.position.set(-35,65,30);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-100,right:100,top:100,bottom:-100});scene.add(sun);
-const mat=(color,metalness=0,roughness=.8)=>new THREE.MeshStandardMaterial({color,metalness,roughness});const ground=mat('#3c5047'),road=mat('#303b42'),concrete=mat('#818d93'),dark=mat('#20282d'),white=mat('#dce1dc'),red=mat('#aa201b',.4,.38),glass=mat('#45687a',.3,.22),gold=mat('#d2c17d',.25),suit=mat('#393c38'),stripe=mat('#d8d3a4',.25),skin=mat('#a97958'),helmet=mat('#d3b23e',.3),black=mat('#171e23');
-function box(parent,w,h,d,x,y,z,m,shadow=true){const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=shadow;o.receiveShadow=true;parent.add(o);return o}
-function cyl(parent,r1,r2,h,x,y,z,m,seg=16){const o=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,seg),m);o.position.set(x,y,z);o.castShadow=true;parent.add(o);return o}
-function ball(parent,r,x,y,z,m){const o=new THREE.Mesh(new THREE.SphereGeometry(r,16,12),m);o.position.set(x,y,z);o.castShadow=true;parent.add(o);return o}
-box(scene,270,.25,180,0,-.2,0,ground,false);for(const z of [0,-35]){box(scene,260,.08,17,0,.02,z,road,false);for(let x=-125;x<130;x+=12)box(scene,5,.015,.15,x,.07,z,white,false)}
-function building(x,z,w,h,d,color,windows=true){const g=new THREE.Group();g.position.set(x,0,z);scene.add(g);box(g,w,h,d,0,h/2,0,mat(color));box(g,w+.5,.4,d+.5,0,h+.15,0,dark);if(windows)for(let y=3;y<h-1;y+=3.5)for(let xx=-w/2+2;xx<w/2-1;xx+=3.2){box(g,1.7,1.9,.09,xx,y,d/2+.06,glass,false);box(g,1.7,1.9,.09,xx,y,-d/2-.06,glass,false)}return g}
-const station=building(-32,-19,29,10,18,'#adb3ae',false);box(station,28,1.5,.35,0,8.1,9.3,red);for(const x of [-8,0,8]){box(station,6.6,5.7,.2,x,3,9.2,mat('#4d6572'));for(let y=1.2;y<6;y+=1.2)box(station,6.6,.1,.24,x,y,9.4,white,false)}
-for(let i=0;i<16;i++){const x=-125+i*16;if(x>-57&&x<60)continue;building(x,22+i%3*5,10+i%2*3,12+i%4*4,11,['#989e9b','#a69c91','#899c9f'][i%3])}for(let i=0;i<13;i++){const x=-120+i*19;if(x>-53&&x<62)continue;building(x,-61,12,12+i%3*4,12,'#9ba8a4')}
-function tree(x,z){cyl(scene,.24,.36,3,x,1.5,z,mat('#62503e'));for(let j=0;j<3;j++)ball(scene,1.6+j*.3,x+(j-1)*.6,3.5+j*.5,z,mat('#3c674a'))}for(let x=-120;x<120;x+=14)if(Math.abs(x)>58){tree(x,13);tree(x,-23)}
-const truck=new THREE.Group();scene.add(truck);truck.position.set(-31,0,-4);box(truck,7.5,2.1,3,0,1.75,0,red);box(truck,2.8,2.7,3.05,2.4,2.25,0,red);box(truck,.08,1.3,2.45,3.84,2.7,0,glass);box(truck,3.5,1.6,3.15,-1.25,1.8,0,mat('#aab7bb',.4));for(const x of [-2.5,2.5])for(const z of [-1.6,1.6]){const wheel=cyl(truck,.68,.68,.36,x,.72,z,black);wheel.rotation.x=Math.PI/2;ball(truck,.27,x,.72,z+(z>0?.21:-.21),mat('#9ca8ad',.6))}box(truck,1.1,.22,.5,2.6,3.75,0,mat('#145da4'));for(const z of [-1.57,1.57])box(truck,1.6,.12,.15,-.7,2.55,z,gold);
-const fireBuilding=building(48,-20,22,18,19,'#aaa49c');for(const x of [-7,0,7])for(const y of [2.5,6.5,10.5])box(fireBuilding,3.5,3.3,.15,x,y,9.58,dark);box(scene,35,.1,32,48,.05,-2,concrete,false);
-function firefighter(){const g=new THREE.Group();box(g,.92,1.25,.52,0,1.55,0,suit);for(const y of [1.15,1.85])box(g,.96,.12,.56,0,y,0,stripe);ball(g,.34,0,2.48,0,skin);cyl(g,.44,.4,.25,0,2.76,0,helmet);box(g,.94,.12,.72,0,2.73,.08,helmet);box(g,.55,.32,.07,0,2.45,.35,glass);box(g,.5,.9,.31,0,1.62,-.43,black);for(const s of [-1,1]){const arm=box(g,.3,.96,.33,s*.64,1.55,0,suit);arm.name='arm'+s;box(arm,.33,.12,.35,0,-.3,0,stripe);const leg=box(g,.35,.9,.38,s*.25,.54,0,suit);leg.name='leg'+s;box(leg,.38,.12,.41,0,-.28,0,stripe);box(g,.41,.2,.58,s*.25,.1,.1,black)}return g}
-const hero=firefighter();scene.add(hero);hero.position.set(-39,0,4);const npc=firefighter();npc.scale.setScalar(.9);npc.position.set(56,0,-2);scene.add(npc);npc.visible=false;
-// Optional locally supplied realistic GLB model: public/models/firefighter.glb.
-// Keep a working procedural fallback so the game remains playable without external assets.
-const loader=new GLTFLoader();loader.load('/models/firefighter.glb',gltf=>{const model=gltf.scene;model.scale.setScalar(1);model.position.y=0;hero.clear();hero.add(model);hero.userData.mixer=gltf.animations.length?new THREE.AnimationMixer(model):null;if(hero.userData.mixer){const clip=gltf.animations.find(a=>/walk|run/i.test(a.name))||gltf.animations[0];hero.userData.walk=hero.userData.mixer.clipAction(clip);hero.userData.walk.play();hero.userData.walk.paused=true}},undefined,()=>{});
-const fires=[];function makeFire(x,y,z){const group=new THREE.Group();group.position.set(x,y,z);scene.add(group);const light=new THREE.PointLight(0xff671e,5,13);group.add(light);const flames=[];for(let i=0;i<13;i++){const flame=new THREE.Mesh(new THREE.ConeGeometry(.3+Math.random()*.38,1.8+Math.random()*1.3,9),new THREE.MeshBasicMaterial({color:i%2?'#ffb42c':'#f94a13',transparent:true,opacity:.82,depthWrite:false}));flame.position.set((Math.random()-.5)*2.3,.5,(Math.random()-.5)*1.3);group.add(flame);flames.push(flame)}const smoke=[];for(let i=0;i<12;i++){const p=ball(group,.5+Math.random()*.7,(Math.random()-.5)*2,2+Math.random()*5,(Math.random()-.5)*2,new THREE.MeshBasicMaterial({color:'#323638',transparent:true,opacity:.27,depthWrite:false}));smoke.push(p)}fires.push({group,flames,smoke,health:100,active:true})}for(const [x,y,z] of [[41,3,-10.25],[48,7,-10.25],[55,3,-10.25],[48,12,-10.25]])makeFire(x,y,z);
-const survivor=new THREE.Group();survivor.position.set(59,0,-1);scene.add(survivor);box(survivor,.7,1,.45,0,1.25,0,mat('#386d91'));ball(survivor,.31,0,2,0,skin);for(const s of [-1,1])box(survivor,.22,.8,.25,s*.2,.45,0,dark);survivor.visible=false;
-const waterMat=new THREE.MeshBasicMaterial({color:'#a9ecff',transparent:true,opacity:.82,depthWrite:false});const particles=[];for(let i=0;i<140;i++){const p=new THREE.Mesh(new THREE.SphereGeometry(.09,6,5),waterMat);p.visible=false;scene.add(p);particles.push(p)}const waterLine=new THREE.Mesh(new THREE.CylinderGeometry(.065,.13,1,9),new THREE.MeshBasicMaterial({color:'#8bdaff',transparent:true,opacity:.7,depthWrite:false}));waterLine.visible=false;scene.add(waterLine);
-let phase='menu',elapsed=0,water=100,angle=.35,pitch=.35,keys={},mouseDown=false,drag=false,lastX=0,lastY=0,driveTime=0,toastTimer=0,score=0,shotTime=0;const clock=new THREE.Clock(),target=new THREE.Vector3(),camGoal=new THREE.Vector3();
-function notify(msg){$('toast').textContent=msg;$('toast').classList.add('show');toastTimer=3}function objective(s){$('objective').textContent=s}function phaseTo(p){phase=p;if(p==='station'){objective('소방차에 접근하여 E 키로 탑승하세요');notify('출동 지령! 소방차에 탑승하십시오.')}if(p==='drive'){driveTime=0;objective('화재 현장으로 긴급 출동 중');notify('긴급 출동!')}if(p==='fire'){hero.position.set(37,0,3);objective('화점 4곳을 모두 진압하세요 · Space 또는 마우스 클릭');notify('현장 도착! 화점을 조준하여 방수하세요.')}if(p==='rescue'){survivor.visible=true;npc.visible=true;objective('요구조자에게 접근하여 E 키로 구조하세요');notify('화재 진압 완료! 요구조자를 구조하세요.')}if(p==='done'){$('overlay').style.display='flex';$('start').textContent='다시 훈련하기';document.querySelector('.panel h1').innerHTML='MISSION<br><em>COMPLETE</em>';$('summary').textContent=`훈련 완료 · ${Math.floor(elapsed/60)}분 ${Math.floor(elapsed%60)}초 · 평가 ${score}점`;objective('모든 훈련 임무 완료');notify('훈련 완료!')}}
-function reset(){elapsed=0;water=100;score=0;shotTime=0;angle=.35;pitch=.35;hero.position.set(-39,0,4);hero.position.y=0;truck.position.set(-31,0,-4);survivor.visible=false;npc.visible=false;for(const f of fires){f.health=100;f.active=true;f.group.visible=true;f.group.scale.setScalar(1)}$('overlay').style.display='none';phaseTo('station')}
-$('start').addEventListener('click',reset);window.addEventListener('keydown',e=>{if(['Space','ArrowUp','ArrowDown'].includes(e.code))e.preventDefault();keys[e.code]=true;if(e.repeat)return;if(e.code==='KeyE')interact();if(e.code==='KeyR'&&phase==='fire'){water=100;notify('용수 보충 완료')}});window.addEventListener('keyup',e=>keys[e.code]=false);renderer.domElement.addEventListener('pointerdown',e=>{if(['menu','done'].includes(phase))return;mouseDown=e.button===0;drag=true;lastX=e.clientX;lastY=e.clientY;renderer.domElement.setPointerCapture(e.pointerId)});renderer.domElement.addEventListener('pointermove',e=>{if(!drag)return;angle-=(e.clientX-lastX)*.006;pitch=THREE.MathUtils.clamp(pitch+(e.clientY-lastY)*.004,.1,.9);lastX=e.clientX;lastY=e.clientY});renderer.domElement.addEventListener('pointerup',()=>{drag=false;mouseDown=false});renderer.domElement.addEventListener('pointercancel',()=>{drag=false;mouseDown=false});
-function interact(){if(phase==='station'){hero.position.distanceTo(truck.position)<10?phaseTo('drive'):notify('소방차에 더 가까이 접근하세요.')}else if(phase==='rescue'){if(hero.position.distanceTo(survivor.position)<5){score+=100;phaseTo('done')}else notify('요구조자에게 접근하세요.')}}
-function move(dt){if(!['station','fire','rescue'].includes(phase))return;let x=Number(!!keys.KeyD)-Number(!!keys.KeyA),z=Number(!!keys.KeyS)-Number(!!keys.KeyW);const moving=!!(x||z);if(hero.userData.walk)hero.userData.walk.paused=!moving;if(!moving){for(const c of hero.children){if(c.name?.startsWith('leg')||c.name?.startsWith('arm'))c.rotation.x*=.8}return}const len=Math.hypot(x,z),speed=(keys.ShiftLeft||keys.ShiftRight?9:5)*dt;const forward=new THREE.Vector3(Math.sin(angle),0,Math.cos(angle)),right=new THREE.Vector3(Math.cos(angle),0,-Math.sin(angle));const delta=forward.multiplyScalar(-z/len).add(right.multiplyScalar(x/len));hero.position.addScaledVector(delta,speed);hero.position.x=THREE.MathUtils.clamp(hero.position.x,-120,120);hero.position.z=THREE.MathUtils.clamp(hero.position.z,-70,70);hero.rotation.y=Math.atan2(delta.x,delta.z);for(const c of hero.children){if(c.name?.startsWith('leg'))c.rotation.x=Math.sin(elapsed*11+(c.name==='leg-1'?Math.PI:0))*.4;if(c.name?.startsWith('arm'))c.rotation.x=Math.sin(elapsed*11+(c.name==='arm-1'?0:Math.PI))*.25}}
-function spray(dt){const shooting=phase==='fire'&&water>0&&(mouseDown||keys.Space);waterLine.visible=shooting;if(!shooting){for(const p of particles)p.visible=false;return}water=Math.max(0,water-dt*10);shotTime+=dt;const origin=hero.position.clone().add(new THREE.Vector3(0,1.65,0));const dir=new THREE.Vector3();camera.getWorldDirection(dir);const aim=origin.clone().addScaledVector(dir,14);let nearest=null,best=Infinity;for(const f of fires){if(!f.active)continue;const to=f.group.position.clone().sub(origin);const dist=to.length();if(dist>25)continue;const alignment=dir.dot(to.normalize());if(alignment>.88&&dist<best){nearest=f;best=dist;aim.copy(f.group.position)}}if(nearest){nearest.health=Math.max(0,nearest.health-dt*34);if(nearest.health===0){nearest.active=false;nearest.group.visible=false;score+=25;notify(`화재 진압 성공! ${fires.filter(f=>!f.active).length}/4`);if(fires.every(f=>!f.active))phaseTo('rescue')}}const path=aim.clone().sub(origin),len=path.length();waterLine.position.copy(origin).addScaledVector(path,.5);waterLine.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),path.clone().normalize());waterLine.scale.set(1,len,1);for(let i=0;i<particles.length;i++){const p=particles[i],t=(shotTime*3+i/particles.length)%1;p.visible=true;p.position.copy(origin).addScaledVector(path,t);p.position.x+=Math.sin(i*13.4)*.15*t;p.position.y+=Math.sin(t*Math.PI)*.28-t*t*.9;p.position.z+=Math.cos(i*7.8)*.14*t;p.scale.setScalar(.8+t*1.6)}}
-function animate(){requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05);if(!['menu','done'].includes(phase)){elapsed+=dt;move(dt);spray(dt);hero.userData.mixer?.update(dt);if(phase==='drive'){driveTime+=dt;truck.position.x+=dt*12;hero.position.copy(truck.position);hero.position.y=2.4;if(driveTime>5){truck.position.set(33,0,0);hero.position.y=0;phaseTo('fire')}}}for(const f of fires){if(!f.active)continue;f.group.scale.setScalar(.45+.55*f.health/100);f.flames.forEach((v,i)=>{v.scale.y=.75+Math.sin(elapsed*8+i)*.27;v.rotation.z=Math.sin(elapsed*5+i)*.15});f.smoke.forEach((v,i)=>{v.position.y=2+((elapsed*(1.1+i*.05)+i*.6)%6);v.position.x=Math.sin(elapsed*.8+i)*.85})}const focus=phase==='drive'?truck.position:hero.position;target.copy(focus).add(new THREE.Vector3(0,1.7,0));camGoal.copy(target).add(new THREE.Vector3(Math.sin(angle)*9,5+pitch*5,Math.cos(angle)*9));camera.position.lerp(camGoal,Math.min(1,dt*5));camera.lookAt(target.x,target.y+1.1,target.z);$('stage').textContent=({menu:'대기',station:'01 소방서',drive:'02 출동',fire:'03 화재 진압',rescue:'04 인명 구조',done:'완료'})[phase];$('timer').textContent=String(Math.floor(elapsed/60)).padStart(2,'0')+':'+String(Math.floor(elapsed%60)).padStart(2,'0');$('water').textContent='용수 '+Math.ceil(water)+'%';$('progress').textContent='진압 '+fires.filter(f=>!f.active).length+'/4';$('reticle').style.display=phase==='fire'?'block':'none';if(toastTimer>0){toastTimer-=dt;if(toastTimer<=0)$('toast').classList.remove('show')}renderer.render(scene,camera)}animate();window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+import { Engine } from './core/engine.js';
+import { Input } from './core/input.js';
+import { Sfx } from './core/audio.js';
+import { World, LAYOUT } from './world/world.js';
+import { Effects } from './world/effects.js';
+import { Player, CameraRig } from './core/player.js';
+import { UI } from './ui/ui.js';
+import { Progress } from './data/progress.js';
+import { MISSIONS, missionById } from './missions/index.js';
+import { Human } from './character/human.js';
+import { clamp, lerp, shuffle } from './core/util.js';
+import { fmtTime } from './core/util.js';
+
+const FULL_GEAR = { pants: true, boots: true, coat: true, hood: true, scba: true, helmet: true, gloves: true };
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+class Game {
+  constructor() {
+    this.root = document.getElementById('app');
+    this.engine = new Engine(document.getElementById('game'));
+    this.world = new World(this.engine);
+    this.fx = new Effects(this.engine, this.world);
+    this.input = new Input(this.engine.renderer.domElement);
+    this.sfx = new Sfx();
+    this.progress = new Progress();
+    this.interactables = [];
+    this.hubIts = [];
+    this.state = 'title';
+    this.mission = null;
+    this.cut = null;
+    this.time = 0;
+    this.camRig = new CameraRig(this.engine, this.world);
+    this.cam = this.camRig;
+    this.player = new Player(this);
+    this.ui = new UI(this.root, this);
+    this.holdT = 0;
+    this.holdTarget = null;
+    this.resolving = false;
+    this.npc = null;
+    this.tmp = new THREE.Vector3();
+    this.last = performance.now();
+    this.player.onHurt = (amt, reason) => {
+      if (!this._hurtT || this.time - this._hurtT > 0.5) { this.sfx.hurt(); this._hurtT = this.time; }
+    };
+    this.input.onPause = () => { if (this.state === 'play' && !this.resolving) this.pause(); };
+    this.engine.renderer.domElement.addEventListener('click', () => {
+      if (this.state === 'play' && this.input.active && !this.input.locked) this.input.lock();
+    });
+    addEventListener('keydown', (e) => {
+      if (e.code === 'KeyM' && !(e.target && /INPUT/.test(e.target.tagName))) { this.sfx.setMuted(!this.sfx.muted); this.ui.toast(this.sfx.muted ? '소리 끔' : '소리 켬', 'info'); }
+    });
+    this.buildHub();
+    window.__game = this;
+  }
+
+  // ───────────── 허브(소방서) ─────────────
+  buildHub() {
+    const npc = new Human({ skin: '#b98763', hair: '#1a1410', scale: 1.04 });
+    npc.setGear({ ...FULL_GEAR });
+    npc.root.position.set(LAYOUT.npc[0], 0, LAYOUT.npc[1]);
+    npc.root.rotation.y = Math.PI * 0.35;
+    this.world.out.add(npc.root);
+    this.npc = npc;
+    const board = this.world.boardPos;
+    this.hubIts = [
+      { pos: new THREE.Vector3(board.x, 0, board.z + 2.2), radius: 3.6, label: '출동 상황판 · 임무 선택', onUse: () => this.openBoard() },
+      { pos: npc.root.position, radius: 2.8, label: '김 팀장(소방위)과 대화', onUse: () => this.npcTalk() },
+    ];
+  }
+
+  addHubIts() { for (const it of this.hubIts) if (!this.interactables.includes(it)) this.interactables.push(it); }
+  removeHubIts() { for (const it of this.hubIts) { const k = this.interactables.indexOf(it); if (k >= 0) this.interactables.splice(k, 1); } }
+
+  async enterHub() {
+    const W = this.world, P = this.player;
+    W.showZone('outdoor');
+    this.fx.clearAll();
+    W.placeTruck(LAYOUT.truckHome[0], LAYOUT.truckHome[1]);
+    P.root.visible = true;
+    P.setGear(this.progress.gearDone ? { ...FULL_GEAR } : {});
+    P.setMask(false);
+    P.allowed = { hose: false, ext: false, tic: false };
+    P.hoseReady = false; P.tool = null; P.human.setTool(null); P.tic = false; P.tether = null; P.carry = null;
+    P.resetStats(this.progress);
+    P.teleport(new THREE.Vector3(LAYOUT.spawnHub[0], 0, LAYOUT.spawnHub[1]), Math.PI);
+    this.engine.setDensity(this.engine.zone.density);
+    this.mission = null;
+    this.interactables.length = 0;
+    this.addHubIts();
+    this.ui.setObjectives('소방서 · 대기', [{ text: this.progress.gearDone ? '출동 상황판(E)에서 임무를 선택한다' : '먼저 1번 임무 「출동 준비」를 완료한다', active: true }, { text: '김 팀장과 대화하면 조언을 들을 수 있다', active: false }]);
+    this.ui.setPass(null);
+    this.state = 'play';
+  }
+
+  async openBoard() {
+    this.state = 'modal';
+    const id = await this.ui.board(MISSIONS, this.progress);
+    this.ui.close();
+    if (!id) { this.resume(); return; }
+    await this.startMission(id);
+  }
+
+  async npcTalk() {
+    this.state = 'modal';
+    const p = this.progress;
+    const lines = !p.gearDone
+      ? [`${p.name} 대원, 환영한다. 현장에서는 장비가 곧 생명줄이다.`, '출동 상황판(E)에서 1번 「출동 준비」 임무를 먼저 수행하게. 장비를 갖추지 못하면 출동할 수 없다.']
+      : ['장비를 갖췄군. 지령이 떨어지면 상황판에서 임무를 골라 출동한다.', '기억해라. 연기 속에서는 자세를 낮추고, 불은 꽃이 아니라 뿌리를 노린다. 무엇보다 안전이 최우선이다.'];
+    await this.ui.talk('김 팀장 (소방위)', lines);
+    this.ui.close();
+    this.resume();
+  }
+
+  resume() {
+    this.state = 'play';
+    this.input.active = true;
+    this.input.lock();
+  }
+
+  // ───────────── 흐름 ─────────────
+  async boot() {
+    this.engine.setZone('outdoor');
+    this.player.setGear({ ...FULL_GEAR });
+    this.player.teleport(new THREE.Vector3(LAYOUT.spawnHub[0], 0, LAYOUT.spawnHub[1]), Math.PI);
+    this.state = 'title';
+    let saved = new Progress();
+    const has = Progress.hasSave() && saved.load();
+    const r = await this.ui.title(has, has ? saved.name : '김소방');
+    if (r.mode === 'continue') { this.progress.load(); } else { this.progress.reset(r.name); }
+    this.progress.name = r.name; this.progress.save();
+    this.ui.close();
+    await this.ui.fade(true, 200);
+    await this.enterHub();
+    this.ui.show(true);
+    await this.ui.fade(false, 700);
+    await this.ui.talk('김 팀장 (소방위)', [`${this.progress.name} 대원! 자네가 오늘 배치된 신임 소방사로군.`, '여기는 119 안전센터. 출동 지령이 떨어지면 소방차에 올라 화재 현장으로 향한다.', '화면 앞의 출동 상황판(E)에서 임무를 선택하게. 처음에는 보호장비 착용부터다.']);
+    this.ui.close();
+    this.resume();
+  }
+
+  async startMission(id, { skipBrief = false } = {}) {
+    const def = missionById(id);
+    if (!skipBrief) {
+      this.state = 'modal';
+      const ok = await this.ui.briefing(def);
+      this.ui.close();
+      if (!ok) { this.resume(); return; }
+    }
+    this.state = 'trans';
+    this.input.active = false;
+    await this.ui.fade(true, 500);
+    this.removeHubIts();
+    this.ui.show(false);
+    if (def.dispatch) await this.dispatch(def);
+    const m = def.create(this, def);
+    this.player.resetStats(this.progress);
+    this.player.allowed = { hose: false, ext: false, tic: false };
+    this.mission = m;
+    this.resolving = false;
+    this.fx.onWrongAgent = null;
+    await m.setup();
+    m.refresh();
+    this.camRig.yaw = this.player.heading;
+    this.camRig.update(0, this.player, null, { free: false });
+    this.ui.show(true);
+    this.state = 'play';
+    await this.ui.fade(false, 600);
+    this.input.active = true;
+    this.input.lock();
+    this.ui.banner(def.title, 2600);
+  }
+
+  // 출동 연출: 소방차가 소방서에서 현장까지 사이렌을 울리며 이동
+  async dispatch(def) {
+    const W = this.world, site = LAYOUT[def.site], home = LAYOUT.truckHome;
+    W.showZone('outdoor');
+    this.fx.clearAll();
+    W.placeTruck(home[0], home[1]);
+    this.player.root.visible = false;
+    const dist = site.truck[0] - home[0];
+    this.cut = { t: 0, dur: clamp(dist / 40, 4.5, 8.5), x0: home[0], x1: site.truck[0], z: home[1], done: null, finished: false };
+    this.state = 'dispatch';
+    const finished = new Promise((res) => (this.cut.done = res));
+    await this.ui.fade(false, 500);
+    this.ui.banner('🚒 출동 중…', 2400);
+    await finished;
+    await this.ui.fade(true, 500);
+    this.cut = null;
+    W.placeTruck(site.truck[0], site.truck[1]);
+    this.player.root.visible = true;
+    this.player.teleport(new THREE.Vector3(site.spawn[0], 0, site.spawn[1]), Math.PI);
+    this.engine.setDensity(this.engine.zone.density);
+    this.state = 'trans';
+  }
+
+  async pause() {
+    if (this.state !== 'play' || this.pausing) return;
+    this.pausing = true;
+    this.state = 'modal';
+    const r = await this.ui.pause();
+    this.ui.close();
+    this.pausing = false;
+    if (r === 'abort' && this.mission) { this.mission.aborted = true; this.mission.finish(false, '임무를 중단했습니다.'); this.state = 'play'; this.input.active = false; }
+    else this.resume();
+  }
+
+  async resolveMission() {
+    this.resolving = true;
+    this.state = 'modal';
+    this.input.active = false;
+    this.input.unlock();
+    const m = this.mission, def = m.def, P = this.player;
+    this.ui.setPrompt(null);
+    this.ui.setMarker(null);
+    P.firing = false;
+    this.sfx.update(0, {});
+    if (!m.aborted) {
+      let quiz = { correct: 0, total: 0 };
+      await wait(m.success ? 700 : 300);
+      this.ui.show(false);
+      if (m.success) quiz = await this.ui.quiz(def.title, shuffle(m.quizPool()).slice(0, 3));
+      const r = m.result(quiz);
+      const before = this.progress.level, prevRank = this.progress.rank;
+      this.progress.addExp(r.exp);
+      this.progress.record(def.id, r.score, r.stars, m.success);
+      const lv = this.progress.level;
+      if (lv > before) this.sfx.levelUp();
+      const rows = [
+        { k: '소요 시간', v: `${fmtTime(m.time)} (기준 ${fmtTime(m.par)})` },
+        ...(m.success && r.timePen ? [{ k: '시간 초과 감점', v: `-${r.timePen}`, kind: 'bad' }] : []),
+        { k: '실수 감점', v: m.penalty ? `-${m.penalty}` : '없음', kind: m.penalty ? 'bad' : 'good' },
+        ...(m.success ? [{ k: '퀴즈 정답', v: `${quiz.correct} / ${quiz.total}`, kind: quiz.correct === quiz.total ? 'good' : '' }] : []),
+        { k: '남은 체력', v: `${Math.ceil(P.stats.hp)} / ${P.stats.maxHp}` },
+        ...(m.failReason ? [{ k: '실패 사유', v: m.failReason, kind: 'bad' }] : []),
+      ];
+      const choice = await this.ui.result({
+        title: def.title, success: m.success, score: r.score, stars: r.stars, exp: r.exp, rows, mistakes: m.mistakes, retry: !m.success,
+        level: { cur: this.progress.expInLevel, need: this.progress.expToNext, rank: this.progress.rank, level: lv, up: lv > before, prevRank },
+      });
+      this.ui.close();
+      await this.ui.fade(true, 500);
+      m.dispose(); this.mission = null;
+      if (choice === 'retry') { await this.startMission(def.id, { skipBrief: true }); return; }
+    } else {
+      await this.ui.fade(true, 400);
+      m.dispose(); this.mission = null;
+    }
+    await this.enterHub();
+    this.ui.show(true);
+    await this.ui.fade(false, 600);
+    this.resolving = false;
+    this.resume();
+  }
+
+  // ───────────── 갱신 ─────────────
+  updateInteract(dt) {
+    const P = this.player, inp = this.input;
+    if (this.mission && inp.pressed('KeyE') && this.mission.onE()) { this.holdT = 0; return; }
+    let best = null, bd = 1e9;
+    for (const it of this.interactables) {
+      if (it.enabled && !it.enabled()) continue;
+      const d = Math.hypot(P.pos.x - it.pos.x, P.pos.z - it.pos.z);
+      if (d < (it.radius || 2.5) && d < bd) { bd = d; best = it; }
+    }
+    if (best !== this.holdTarget) { this.holdTarget = best; this.holdT = 0; }
+    if (!best) { this.ui.setPrompt(null); return; }
+    if (best.hold) {
+      if (inp.isDown('KeyE')) { this.holdT += dt; if (this.holdT >= best.hold) { this.holdT = 0; best.onUse(); } } else this.holdT = 0;
+      this.ui.setPrompt(`${best.label} — E 길게 누르기`, this.holdT / best.hold);
+    } else {
+      this.ui.setPrompt(best.label, null);
+      if (inp.pressed('KeyE')) { P.human.play('reach', 0.7); best.onUse(); this.sfx.click(); }
+    }
+  }
+
+  updateMarker() {
+    let t = this.mission ? this.mission.markerTarget : null;
+    if (!this.mission && this.state === 'play') t = { pos: new THREE.Vector3(this.world.boardPos.x, 3.7, this.world.boardPos.z), label: '출동 상황판' };
+    if (!t || this.state !== 'play') { this.ui.setMarker(null); return; }
+    const v = this.tmp.copy(t.pos).project(this.engine.camera);
+    if (v.z > 1) { this.ui.setMarker(null); return; }
+    const W = innerWidth, H = innerHeight;
+    const x = clamp((v.x * 0.5 + 0.5) * W, 40, W - 40), y = clamp((-v.y * 0.5 + 0.5) * H, 60, H - 70);
+    const d = t.pos.distanceTo(this.player.pos);
+    this.ui.setMarker(x, y, t.label, d);
+  }
+
+  fireLevel() {
+    let s = 0;
+    for (const f of this.fx.fires) if (f.alive) s += clamp(1 - f.pos.distanceTo(this.player.pos) / 28, 0, 1) * f.intensity * Math.min(1.2, f.size);
+    return Math.min(1, s);
+  }
+
+  update(dt) {
+    this.time += dt;
+    const inp = this.input, P = this.player, cam = this.engine.camera;
+    if (inp.pressed('Escape') && this.state === 'play' && !inp.locked) this.pause();
+
+    if (this.state === 'title') {
+      const t = this.time * 0.12;
+      const cx = LAYOUT.spawnHub[0] + 3, cz = LAYOUT.spawnHub[1] - 3;
+      cam.position.set(cx + Math.cos(t) * 11, 3.2, cz + Math.sin(t) * 11 + 4);
+      cam.lookAt(cx, 1.8, cz - 2);
+      P.human.update(dt, { speed: 0 });
+      this.engine.follow(P.pos);
+    } else if (this.state === 'dispatch' && this.cut) {
+      const c = this.cut;
+      c.t += dt;
+      const k = clamp(c.t / c.dur, 0, 1), e = k * k * (3 - 2 * k);
+      const x = lerp(c.x0, c.x1, e);
+      this.world.placeTruck(x, c.z);
+      cam.position.set(x - 13, 4.6, c.z + 8.5);
+      cam.lookAt(x + 5, 1.5, c.z - 0.5);
+      this.engine.follow(this.world.truck.position);
+      if (c.t >= c.dur && !c.finished) { c.finished = true; c.done(); }
+    } else if (this.state === 'play') {
+      P.update(dt);
+      this.camRig.update(dt, P, inp, { aiming: P.aiming });
+      this.mission && this.mission.tick(dt);
+      this.updateInteract(dt);
+      if (!this.mission) this.npc.update(dt, { speed: 0 });
+      this.engine.follow(P.pos);
+      if (this.mission && this.mission.ended && !this.resolving) this.resolveMission();
+    } else if (this.state === 'modal' || this.state === 'trans') {
+      this.engine.follow(P.pos);
+    }
+
+    // 월드 효과
+    if (this.state !== 'modal') this.fx.update(this.state === 'dispatch' ? 0.016 : dt);
+    if (this.world.zone === 'outdoor') this.world.truck.userData.flash(this.time + (this.state === 'dispatch' ? 0 : 0));
+    // 조명
+    const src = this.fx.lightSources();
+    for (const l of this.world.lampSources) src.push(l);
+    if (this.world.zone === 'smoky' && this.state === 'play') {
+      const hp = P.human.head.getWorldPosition(new THREE.Vector3());
+      hp.add(this.tmp.set(Math.sin(P.heading) * 0.5, 0.1, Math.cos(P.heading) * 0.5));
+      src.push({ pos: hp, color: '#fff0d8', intensity: P.tic ? 3 : 18, distance: 11 });
+    }
+    this.engine.assignLights(src, this.state === 'dispatch' ? this.world.truck.position : P.pos);
+    // 열화상 표시
+    this.engine.renderer.domElement.classList.toggle('tic', !!P.tic && this.state === 'play');
+    if (this.mission) for (const o of this.mission.thermal) o.visible = !!P.tic;
+    // 소리
+    const a = P.audio || {};
+    this.sfx.update(dt, {
+      siren: this.state === 'dispatch', water: this.state === 'play' ? a.water : 0, powder: this.state === 'play' ? a.powder : 0,
+      fire: this.state === 'play' ? this.fireLevel() : 0,
+      lowAir: !!(this.mission && this.mission.showAir && P.mask && P.stats.air < 30 && this.state === 'play'),
+    });
+    // HUD
+    if (this.state === 'play' || this.state === 'modal') {
+      let nf = 1e9;
+      for (const f of this.fx.fires) if (f.alive) nf = Math.min(nf, f.pos.distanceTo(P.pos));
+      this.ui.update({
+        player: P, progress: this.progress, time: this.mission ? this.mission.time : 0, showAir: !!(this.mission && this.mission.showAir),
+        survivor: this.mission ? this.mission.survivorCond : null, smoke: this.mission ? this.mission.smokeFx : 0,
+        crosshair: this.state === 'play', ticTemp: 24 + Math.max(0, 14 - nf) * 35,
+      });
+      this.updateMarker();
+    }
+    inp.endFrame();
+  }
+
+  render() { this.engine.render(); }
+
+  loop = () => {
+    requestAnimationFrame(this.loop);
+    const now = performance.now();
+    const dt = Math.min((now - this.last) / 1000, 0.05);
+    this.last = now;
+    this.update(dt);
+    this.render();
+  };
+
+  // 테스트/디버그: 렌더링 없이 시뮬레이션만 진행
+  sim(seconds, step = 1 / 30) {
+    for (let t = 0; t < seconds; t += step) this.update(step);
+  }
+}
+
+const game = new Game();
+game.loop();
+game.boot();
