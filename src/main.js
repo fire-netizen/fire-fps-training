@@ -18,10 +18,46 @@ const fires=[];function makeFire(x,y,z){const group=new THREE.Group();scene.add(
 const survivor=new THREE.Group();scene.add(survivor);survivor.position.set(59,0,-2);box(survivor,.7,1,.45,0,1.2,0,mat(0x3a7197));ball(survivor,.32,0,2,0,mat(0xd9a987));for(const s of [-1,1])box(survivor,.22,.8,.25,s*.2,.4,0,dark);survivor.visible=false;
 const spray=[];for(let i=0;i<80;i++){const m=new THREE.Mesh(new THREE.SphereGeometry(.055,5,4),new THREE.MeshBasicMaterial({color:0x9ee5ff,transparent:true,opacity:.8}));m.visible=false;scene.add(m);spray.push(m)}
 let phase='menu',elapsed=0,water=100,angle=.3,pitch=.3,keys={},mouseDown=false,drag=false,lastX=0,lastY=0,shotTime=0,driveTime=0,toastTimer=0,score=0;const clock=new THREE.Clock();const target=new THREE.Vector3(),camGoal=new THREE.Vector3(),ray=new THREE.Raycaster();
-function notify(msg){$('toast').textContent=msg;$('toast').classList.add('show');toastTimer=2.8}function setObjective(msg){$('objective').textContent=msg}function setPhase(next){phase=next;if(next==='station'){setObjective('소방차에 접근하여 E 키로 탑승하세요');notify('출동 지령! 소방차에 탑승하십시오.')}if(next==='drive'){setObjective('화재 현장으로 출동 중');notify('긴급 출동! 사이렌 작동');driveTime=0}if(next==='fire'){hero.position.set(37,0,4);setObjective('건물 화재 4곳을 모두 진압하세요');notify('현장 도착! 화점에 접근하여 방수하세요.')}if(next==='rescue'){survivor.visible=true;npc.visible=true;setObjective('요구조자에게 접근하여 E 키로 구조하세요');notify('화재 진압 완료! 요구조자를 찾으세요.')}if(next==='done'){setObjective('모든 임무 완료');$('overlay').style.display='flex';$('start').textContent='다시 훈련하기';document.querySelector('.panel h1').innerHTML='MISSION<br><em>COMPLETE</em>';document.querySelector('.panel p').textContent=`훈련 완료 · 소요시간 ${Math.floor(elapsed/60)}분 ${Math.floor(elapsed%60)}초 · 평가점수 ${score+100}점`;notify('훈련 임무 완료!')}}
+function notify(msg){$('toast').textContent=msg;$('toast').classList.add('show');toastTimer=2.8}function setObjective(msg){$('objective').textContent=msg}function setPhase(next){phase=next;if(next!=='fire')for(const p of spray)p.visible=false;if(next==='station'){setObjective('소방차에 접근하여 E 키로 탑승하세요');notify('출동 지령! 소방차에 탑승하십시오.')}if(next==='drive'){setObjective('화재 현장으로 출동 중');notify('긴급 출동! 사이렌 작동');driveTime=0}if(next==='fire'){hero.position.set(37,0,4);setObjective('건물 화재 4곳을 모두 진압하세요');notify('현장 도착! 화점에 접근하여 방수하세요.')}if(next==='rescue'){survivor.visible=true;npc.visible=true;setObjective('요구조자에게 접근하여 E 키로 구조하세요');notify('화재 진압 완료! 요구조자를 찾으세요.')}if(next==='done'){setObjective('모든 임무 완료');$('overlay').style.display='flex';$('start').textContent='다시 훈련하기';document.querySelector('.panel h1').innerHTML='MISSION<br><em>COMPLETE</em>';document.querySelector('.panel p').textContent=`훈련 완료 · 소요시간 ${Math.floor(elapsed/60)}분 ${Math.floor(elapsed%60)}초 · 평가점수 ${score+100}점`;notify('훈련 임무 완료!')}}
 function reset(){elapsed=0;water=100;score=0;angle=.3;pitch=.3;hero.position.set(-39,0,3);truck.position.set(-32,0,-3);survivor.visible=false;npc.visible=false;for(const f of fires){f.health=100;f.active=true;f.group.visible=true;f.group.scale.setScalar(1)}$('overlay').style.display='none';setPhase('station')}
 $('start').addEventListener('click',reset);window.addEventListener('keydown',e=>{if(['Space','ArrowUp','ArrowDown'].includes(e.code))e.preventDefault();keys[e.code]=true;if(e.repeat)return;if(e.code==='KeyE')interact();if(e.code==='KeyR'&&phase==='fire'){water=100;notify('물탱크 보충 완료')}});window.addEventListener('keyup',e=>keys[e.code]=false);renderer.domElement.addEventListener('pointerdown',e=>{if(phase==='menu'||phase==='done')return;mouseDown=true;drag=true;lastX=e.clientX;lastY=e.clientY;renderer.domElement.setPointerCapture(e.pointerId)});renderer.domElement.addEventListener('pointermove',e=>{if(!drag)return;angle-=(e.clientX-lastX)*.006;pitch=THREE.MathUtils.clamp(pitch+(e.clientY-lastY)*.004,.1,.9);lastX=e.clientX;lastY=e.clientY});renderer.domElement.addEventListener('pointerup',()=>{drag=false;mouseDown=false});renderer.domElement.addEventListener('pointercancel',()=>{drag=false;mouseDown=false});
 function interact(){if(phase==='station'){if(hero.position.distanceTo(truck.position)<9){setPhase('drive')}else notify('소방차에 더 가까이 접근하세요.')}else if(phase==='rescue'){if(hero.position.distanceTo(survivor.position)<5){score+=100;setPhase('done')}else notify('요구조자에게 더 가까이 접근하세요.')}}
 function updateMovement(dt){if(!['station','fire','rescue'].includes(phase))return;let x=Number(!!keys.KeyD)-Number(!!keys.KeyA),z=Number(!!keys.KeyS)-Number(!!keys.KeyW);if(!x&&!z)return;const len=Math.hypot(x,z),speed=(keys.ShiftLeft||keys.ShiftRight?9:5)*dt;const fwd=new THREE.Vector3(Math.sin(angle),0,Math.cos(angle));const right=new THREE.Vector3(Math.cos(angle),0,-Math.sin(angle));const move=fwd.multiplyScalar(-z/len).add(right.multiplyScalar(x/len));hero.position.addScaledVector(move,speed);hero.position.x=THREE.MathUtils.clamp(hero.position.x,-113,113);hero.position.z=THREE.MathUtils.clamp(hero.position.z,-65,65);hero.rotation.y=Math.atan2(move.x,move.z);const t=elapsed*11;for(const child of hero.children){if(child.name.startsWith('leg'))child.rotation.x=Math.sin(t+(child.name==='leg-1'?Math.PI:0))*.36;if(child.name.startsWith('arm'))child.rotation.x=Math.sin(t+(child.name==='arm-1'?0:Math.PI))*.23}}
-function shoot(dt){if(phase!=='fire'||water<=0||!(mouseDown||keys.Space)){for(const p of spray)p.visible=false;return;}water=Math.max(0,water-dt*13);shotTime+=dt;const origin=hero.position.clone().add(new THREE.Vector3(0,1.5,0));let nearest=null,best=Infinity;for(const f of fires){if(!f.active)continue;const p=f.group.position;const dist=origin.distanceTo(p);if(dist>19)continue;const delta=p.clone().sub(origin);const view=new THREE.Vector3();camera.getWorldDirection(view);const alignment=view.dot(delta.normalize());if(alignment>.89&&dist<best){nearest=f;best=dist}}if(nearest){nearest.health-=dt*36;if(nearest.health<=0){nearest.active=false;nearest.group.visible=false;score+=25;notify(`화재 진압 성공! ${fires.filter(f=>!f.active).length}/4`);if(fires.every(f=>!f.active))setPhase('rescue')}}for(let i=0;i<spray.length;i++){const p=spray[i];p.visible=i<40;const forward=new THREE.Vector3();camera.getWorldDirection(forward);const t=((shotTime*9+i*.081)%1);p.position.copy(origin).addScaledVector(forward,t*12);p.position.x+=(Math.sin(i*17)*.25)*t;p.position.y+=Math.sin(t*Math.PI)*.45-t*t*1.3;p.position.z+=Math.cos(i*9)*.2*t}}
+// Visible water jet: bright droplets travel from the firefighter toward the aimed fire.
+function shoot(dt){
+  const firing=phase==='fire'&&water>0&&(mouseDown||keys.Space);
+  if(!firing){for(const p of spray)p.visible=false;return;}
+  water=Math.max(0,water-dt*9);
+  shotTime+=dt;
+  const origin=hero.position.clone().add(new THREE.Vector3(0,1.65,0));
+  const view=new THREE.Vector3();camera.getWorldDirection(view);view.y=Math.max(-.35,Math.min(.35,view.y));view.normalize();
+  let nearest=null,best=Infinity;
+  for(const f of fires){
+    if(!f.active)continue;
+    const delta=f.group.position.clone().sub(origin),dist=delta.length();
+    if(dist>24)continue;
+    const alignment=view.dot(delta.normalize());
+    if(alignment>.70&&dist<best){nearest=f;best=dist;}
+  }
+  // Aim toward the closest fire in the camera's forward cone, otherwise shoot forward.
+  const direction=nearest?nearest.group.position.clone().sub(origin).normalize():view;
+  if(nearest){
+    nearest.health-=dt*34;
+    if(nearest.health<=0){
+      nearest.active=false;nearest.group.visible=false;score+=25;
+      notify(`화재 진압 성공! ${fires.filter(f=>!f.active).length}/4`);
+      if(fires.every(f=>!f.active))setPhase('rescue');
+    }
+  }
+  for(let i=0;i<spray.length;i++){
+    const p=spray[i];p.visible=true;
+    const t=((shotTime*2.8+i/spray.length)%1);
+    const dist=t*19;
+    p.position.copy(origin).addScaledVector(direction,dist);
+    p.position.y-=t*t*1.8;
+    p.position.x+=Math.sin(i*12.989+shotTime*5)*.16*t;
+    p.position.z+=Math.cos(i*7.21+shotTime*5)*.16*t;
+    p.scale.setScalar(1.8+1.2*t);
+  }
+}
 function animate(){requestAnimationFrame(animate);const dt=Math.min(clock.getDelta(),.05);if(!['menu','done'].includes(phase)){elapsed+=dt;updateMovement(dt);shoot(dt);if(phase==='drive'){driveTime+=dt;truck.position.x+=dt*12;hero.position.copy(truck.position);hero.position.y=2.3;if(driveTime>5){truck.position.set(33,0,0);setPhase('fire')}}}for(const f of fires){if(!f.active)continue;const s=.65+.35*f.health/100;f.group.scale.setScalar(s);f.flames.forEach((v,i)=>{v.scale.y=.7+Math.sin(elapsed*7+i)*.3;v.rotation.z=Math.sin(elapsed*4+i)*.13});f.smoke.forEach((v,i)=>{v.position.y=2+((elapsed*(1.2+i*.07)+i*.65)%5);v.position.x=Math.sin(elapsed*.8+i)*.8})}const focus=phase==='drive'?truck.position:hero.position;target.copy(focus).add(new THREE.Vector3(0,1.6,0));const offset=new THREE.Vector3(Math.sin(angle)*9,5+pitch*5,Math.cos(angle)*9);camGoal.copy(target).add(offset);camera.position.lerp(camGoal,Math.min(1,dt*5));camera.lookAt(target.x,target.y+1.2,target.z);$('stage').textContent=({menu:'READY',station:'STAGE 01',drive:'STAGE 02',fire:'STAGE 03',rescue:'STAGE 04',done:'COMPLETE'})[phase];$('clock').textContent=String(Math.floor(elapsed/60)).padStart(2,'0')+':'+String(Math.floor(elapsed%60)).padStart(2,'0');$('water').textContent='💧 '+Math.ceil(water)+'%';$('progress').textContent='🔥 '+fires.filter(f=>!f.active).length+' / 4';if(toastTimer>0){toastTimer-=dt;if(toastTimer<=0)$('toast').classList.remove('show')}renderer.render(scene,camera)}animate();window.addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
