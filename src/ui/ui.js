@@ -120,8 +120,9 @@ export class UI {
     w('airBar', st.air); set('airTxt', `${Math.ceil(st.air)}%`);
     $('airBar').parentElement.classList.toggle('low', st.air < 30);
     const tool = P.tool;
-    $('agentRow').classList.toggle('hidden', !(tool === 'hose' || tool === 'ext'));
-    if (tool === 'ext') { set('agentLabel', '소화약제'); w('agentBar', st.ext); set('agentTxt', `${Math.ceil(st.ext)}%`); }
+    $('agentRow').classList.toggle('hidden', !(tool === 'hose' || tool === 'ext' || (tool === 'agent' && P.agentSel)));
+    if (tool === 'agent') { set('agentLabel', '약제'); w('agentBar', st.ext); set('agentTxt', `${Math.ceil(st.ext)}%`); }
+    else if (tool === 'ext') { set('agentLabel', '소화약제'); w('agentBar', st.ext); set('agentTxt', `${Math.ceil(st.ext)}%`); }
     else { set('agentLabel', '용수'); w('agentBar', st.water); set('agentTxt', `${Math.ceil(st.water)}%`); }
     $('survRow').classList.toggle('hidden', d.survivor == null);
     if (d.survivor != null) { w('survBar', d.survivor); set('survTxt', `${Math.ceil(d.survivor)}%`); $('survBar').parentElement.classList.toggle('low', d.survivor < 35); }
@@ -136,12 +137,25 @@ export class UI {
     set('pinTxt', P.pin ? '안전핀 ●' : '해제 ✔');
     set('ticTxt', P.tic ? 'ON' : 'OFF');
     $('tools').classList.toggle('hidden', !(P.allowed.hose || P.allowed.ext || P.allowed.tic));
-    $('cross').style.display = (tool === 'hose' || tool === 'ext') && d.crosshair ? 'block' : 'none';
+    $('cross').style.display = (tool === 'hose' || tool === 'ext' || tool === 'agent') && d.crosshair ? 'block' : 'none';
     // 화면 효과
     $('fxHurt').style.opacity = String(Math.min(0.85, P.hurtFlash));
     $('fxSmoke').style.opacity = String(d.smoke || 0);
     $('fxTic').style.display = P.tic ? 'block' : 'none';
     if (P.tic) set('ticTemp', `${(d.ticTemp || 24).toFixed(0)}°C`);
+  }
+
+  // 화면 번쩍임 (폭발·감전 등)
+  flash(color = '#fff', ms = 600) {
+    if (!this.flashEl) {
+      this.flashEl = document.createElement('div');
+      this.flashEl.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:60;opacity:0';
+      document.body.append(this.flashEl);
+    }
+    const f = this.flashEl;
+    f.style.transition = 'none'; f.style.background = color; f.style.opacity = '0.9';
+    void f.offsetWidth;
+    f.style.transition = `opacity ${ms}ms ease-out`; f.style.opacity = '0';
   }
 
   // ───────── 페이드 ─────────

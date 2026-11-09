@@ -18,6 +18,7 @@ export const LAYOUT = {
   siteC: { x: 276, z: -24, w: 22, d: 14, floors: 2, floorH: 4, truck: [260, -3.6], spawn: [268, -9.6], door: [276, -17] },
   interiorB: [0, 0, 400],
   interiorC: [300, 0, 400],
+  interiorD: [600, 0, 400],
 };
 
 export class World {
@@ -36,6 +37,7 @@ export class World {
     this.buildOutdoor();
     this.buildSmokeInterior();
     this.buildShop();
+    this.buildLab();
     this.showZone('outdoor');
   }
 
@@ -105,8 +107,9 @@ export class World {
     this.out.visible = name === 'outdoor';
     this.intB.group.visible = name === 'smoky';
     this.intC.group.visible = name === 'shop';
+    this.intD.group.visible = name === 'lab';
     this.engine.setZone(name);
-    this.lampSources = name === 'shop' ? this.intC.lamps : [];
+    this.lampSources = name === 'shop' ? this.intC.lamps : name === 'lab' ? this.intD.lamps : [];
   }
 
   // ───────── 공통 빌더 ─────────
@@ -540,6 +543,100 @@ export class World {
       { id: 'trash', type: 'A', pos: I.p(6.4, 0.55, 2.6), size: 0.55, hp: 70, label: '쓰레기통 화재 (일반화재 · A급)' },
       { id: 'oil', type: 'B', pos: I.p(-4.3, 1.2, 10.3), size: 0.5, hp: 80, label: '주방 식용유 화재 (유류화재 · B/K급)' },
       { id: 'elec', type: 'C', pos: I.p(-7.4, 1.35, 5.8), size: 0.4, hp: 70, label: '분전반 화재 (전기화재 · C급)' },
+    ];
+    grp.visible = false;
+  }
+
+  // ═════════════════ 실내 D: 소화약제 선택 실습장 (5번 임무) ═════════════════
+  buildLab() {
+    const grp = new THREE.Group();
+    this.scene.add(grp);
+    const O = LAYOUT.interiorD;
+    const I = (this.intD = { group: grp, O: new THREE.Vector3(...O), lamps: [] });
+    const H = 3.6;
+    const wx = (x) => O[0] + x, wz = (z) => O[2] + z;
+    const wallMat = new THREE.MeshStandardMaterial({ map: tiled(plasterTex('#cfd3d6'), 5, 1), roughness: 0.95 });
+    const floorMat = new THREE.MeshStandardMaterial({ map: tiled(concreteTex(), 6, 5), roughness: 0.75 });
+    const ceilMat = new THREE.MeshStandardMaterial({ color: '#d8dadc', roughness: 0.95, side: THREE.DoubleSide });
+    const fl = this.mesh(grp, new THREE.PlaneGeometry(20, 15), floorMat, wx(0), 0.01, wz(7), { cast: false }); fl.rotation.x = -Math.PI / 2;
+    const ce = this.mesh(grp, new THREE.PlaneGeometry(20, 15), ceilMat, wx(0), H, wz(7)); ce.rotation.x = Math.PI / 2;
+    this.solid(wx(0), H + 0.2, wz(7), 22, 0.4, 17, 'ceiling');
+    const wall = (x0, z0, x1, z1, y0 = 0, y1 = H) => {
+      const w = Math.abs(x1 - x0) + (x0 === x1 ? 0.28 : 0), d = Math.abs(z1 - z0) + (z0 === z1 ? 0.28 : 0);
+      this.box(grp, w, y1 - y0, d, wx((x0 + x1) / 2), (y0 + y1) / 2, wz((z0 + z1) / 2), wallMat, { solid: true, tag: 'wall' });
+    };
+    wall(-10, 0, -10, 14); wall(10, 0, 10, 14); wall(-10, 14, 10, 14); wall(-10, 0, -1.2, 0); wall(1.2, 0, 10, 0); wall(-1.2, 0, 1.2, 0, 2.3, H);
+    const outside = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.3, 0.1), new THREE.MeshBasicMaterial({ color: '#fff0d8' }));
+    outside.position.set(wx(0), 1.15, wz(-0.5)); grp.add(outside);
+    this.solid(wx(0), 1.6, wz(-0.9), 3.0, 3.2, 0.6, 'exitblock', { water: false });
+    const exit = new THREE.MeshStandardMaterial({ map: labelTexture('비상구', { w: 256, h: 96, bg: '#0f7d3d', fg: '#fff', font: 'bold 56px sans-serif' }), emissive: '#14a85a', emissiveIntensity: 1.2 });
+    this.box(grp, 0.9, 0.34, 0.06, wx(0), 2.7, wz(0.2), exit, { cast: false });
+    for (const [x, z] of [[-6, 3], [6, 3], [-6, 8], [0, 8], [6, 8], [0, 12]]) {
+      this.box(grp, 1.6, 0.06, 0.5, wx(x), H - 0.04, wz(z), std('#fff6dc', 0.3, 0, { emissive: '#fff0c8', emissiveIntensity: 1.6 }), { cast: false });
+      I.lamps.push({ pos: new THREE.Vector3(wx(x), H - 0.5, wz(z)), color: '#ffeccc', intensity: 9, distance: 13 });
+    }
+    // 입구 안내 간판
+    this.box(grp, 4.2, 0.55, 0.06, wx(0), 3.0, wz(0.2), new THREE.MeshStandardMaterial({ map: labelTexture('위험물 · 소화약제 실습장', { w: 768, h: 100, bg: '#1c2b3a', fg: '#ffd24a', font: 'bold 54px sans-serif' }), roughness: 0.5 }), { cast: false });
+
+    const steel = std('#aab0b6', 0.35, 0.8), dark = std('#16181b', 0.5, 0.3), wood = std('#6b4a30', 0.6), logMat = std('#7a5230', 0.9);
+    const table = (x, z, w = 1.7) => this.box(grp, w, 0.9, 0.9, wx(x), 0.45, wz(z), steel, { solid: true, round: 0.03, tag: 'table', water: false, view: false });
+    const sign = (x, text, bg, fg = '#fff') => {
+      this.box(grp, 2.5, 0.62, 0.06, wx(x), 2.65, wz(13.82), new THREE.MeshStandardMaterial({ map: labelTexture(text, { w: 512, h: 128, bg, fg, font: 'bold 52px sans-serif' }), roughness: 0.5 }), { cast: false });
+    };
+    const cyl = (r1, r2, h, x, y, z, mat) => this.mesh(grp, new THREE.CylinderGeometry(r1, r2, h, 20), mat, wx(x), y, wz(z));
+    const XS = [-7.5, -4.5, -1.5, 1.5, 4.5, 7.5], FZ = 11.3, TY = 0.95;
+    // 1) 나무(목재) 더미 — A급
+    table(XS[0], 11.6);
+    for (let i = 0; i < 3; i++) { const m = cyl(0.11, 0.11, 0.9, XS[0] - 0.22 + i * 0.22, 1.05, 11.6, logMat); m.rotation.z = Math.PI / 2; }
+    for (let i = 0; i < 2; i++) { const m = cyl(0.11, 0.11, 0.9, XS[0] - 0.11 + i * 0.22, 1.25, 11.6, logMat); m.rotation.z = Math.PI / 2; }
+    sign(XS[0], '나무 · 종이', '#6b4a30');
+    // 2) 휘발유 팬 — B급
+    table(XS[1], 11.6);
+    cyl(0.42, 0.42, 0.12, XS[1], 0.96, 11.6, steel);
+    cyl(0.38, 0.38, 0.02, XS[1], 1.03, 11.6, std('#2a2418', 0.3, 0.1));
+    this.box(grp, 0.3, 0.4, 0.18, wx(XS[1] + 0.9), 1.1, wz(11.6), std('#b4231b', 0.5, 0.2), { round: 0.03 });
+    sign(XS[1], '휘발유(가솔린)', '#9a2a1a');
+    // 3) 분전반 — C급
+    this.box(grp, 0.9, 1.9, 0.5, wx(XS[2]), 0.95, wz(12.0), std('#6a727a', 0.4, 0.6), { solid: true, tag: 'panel', water: false, view: false });
+    this.box(grp, 0.6, 0.35, 0.04, wx(XS[2]), 1.55, wz(11.74), new THREE.MeshStandardMaterial({ map: labelTexture('⚡ 220V', { w: 256, h: 96, bg: '#e8c32a', fg: '#111', font: 'bold 52px sans-serif' }), roughness: 0.5 }), { cast: false });
+    sign(XS[2], '배전반(분전반)', '#2d5fa8');
+    // 4) 나트륨 — D급(금수성)
+    table(XS[3], 11.6);
+    this.box(grp, 0.4, 0.22, 0.3, wx(XS[3]), 1.01, wz(11.6), std('#c9ced3', 0.3, 0.9), { round: 0.03 });
+    this.box(grp, 0.5, 0.3, 0.04, wx(XS[3]), 0.65, wz(11.12), new THREE.MeshStandardMaterial({ map: labelTexture('Na 금수성', { w: 256, h: 128, bg: '#1b1b1b', fg: '#ffd24a', font: 'bold 56px sans-serif' }), roughness: 0.5 }), { cast: false });
+    sign(XS[3], '나트륨(Na)', '#7a4a9a');
+    // 5) 식용유 — K급
+    table(XS[4], 11.6);
+    this.box(grp, 0.9, 0.2, 0.6, wx(XS[4]), 1.0, wz(11.6), dark, { round: 0.02 });
+    cyl(0.28, 0.28, 0.1, XS[4], 1.15, 11.6, dark);
+    cyl(0.25, 0.25, 0.02, XS[4], 1.2, 11.6, std('#b58a1c', 0.2, 0.1));
+    this.box(grp, 0.5, 0.05, 0.06, wx(XS[4] + 0.5), 1.17, wz(11.6), dark);
+    sign(XS[4], '식용유(튀김)', '#b9731c');
+    // 6) 리튬이온 배터리 — 전동킥보드 배터리 팩
+    table(XS[5], 11.6);
+    this.box(grp, 0.55, 0.14, 0.3, wx(XS[5]), 0.99, wz(11.6), std('#22272d', 0.4, 0.3), { round: 0.02 });
+    this.box(grp, 0.5, 0.03, 0.05, wx(XS[5]), 1.07, wz(11.46), std('#22c55e', 0.4, 0.2, { emissive: '#22c55e', emissiveIntensity: 0.7 }));
+    sign(XS[5], '리튬이온 배터리', '#1f7a4d');
+    // 거리선(3~5m 사용 거리)
+    this.box(grp, 18, 0.01, 0.12, wx(0), 0.02, wz(FZ - 4.2), std('#e8c32a', 0.8, 0), { cast: false });
+    this.box(grp, 3.2, 0.3, 0.04, wx(-8.2), 0.4, wz(FZ - 4.2), new THREE.MeshStandardMaterial({ map: labelTexture('사용 거리 3~5m', { w: 256, h: 64, bg: '#e8c32a', fg: '#111', font: 'bold 34px sans-serif' }), roughness: 0.6 }), { cast: false });
+    // 약제 보급대 (왼쪽 벽)
+    this.box(grp, 0.9, 0.9, 3.0, wx(-9.2), 0.45, wz(3.0), steel, { solid: true, round: 0.03, tag: 'table', water: false, view: false });
+    const AGC = ['#6fc3ff', '#f1efe6', '#cfe6ff', '#efe3b8', '#c4a46a', '#c9ef8f'];
+    AGC.forEach((c, i) => cyl(0.14, 0.14, 0.42, -9.2, 1.11, 1.8 + i * 0.48, std(c, 0.5, 0.1)));
+    this.box(grp, 0.06, 0.45, 2.4, wx(-9.82), 2.2, wz(3.0), new THREE.MeshStandardMaterial({ map: labelTexture('소화약제 보급대', { w: 512, h: 96, bg: '#c8281f', fg: '#fff', font: 'bold 50px sans-serif' }), roughness: 0.5 }), { cast: false });
+
+    I.p = (x, y, z) => new THREE.Vector3(wx(x), y, wz(z));
+    I.spawn = I.p(0, 0, 2.2);
+    I.exit = I.p(0, 0, 0.5);
+    I.supplyPos = I.p(-8.0, 0, 3.0);
+    I.fires = [
+      { id: 'wood', type: 'A', pos: I.p(XS[0], 1.35, FZ + 0.3), size: 0.9, hp: 90, label: '나무', smoke: 1.0 },
+      { id: 'gas', type: 'B', pos: I.p(XS[1], 1.05, FZ + 0.3), size: 0.85, hp: 100, label: '휘발유', smoke: 1.8, tint: [[1, 0.55, 0.12], [0.55, 0.1, 0.02]] },
+      { id: 'elec', type: 'C', pos: I.p(XS[2], 1.0, FZ + 0.2), size: 0.7, hp: 80, label: '배전반', smoke: 0.4, tint: [[0.72, 0.86, 1], [0.3, 0.5, 1]], light: '#9cc8ff' },
+      { id: 'sodium', type: 'D', pos: I.p(XS[3], 1.15, FZ + 0.3), size: 0.75, hp: 90, label: '나트륨', smoke: 0.6, tint: [[1, 0.95, 0.4], [1, 0.7, 0.1]], light: '#ffe36a' },
+      { id: 'oil', type: 'K', pos: I.p(XS[4], 1.3, FZ + 0.3), size: 0.8, hp: 100, label: '식용유', smoke: 1.2 },
+      { id: 'li', type: 'L', pos: I.p(XS[5], 1.1, FZ + 0.3), size: 0.75, hp: 160, label: '리튬이온 배터리', smoke: 1.5, tint: [[1, 0.85, 0.6], [1, 0.3, 0.1]] },
     ];
     grp.visible = false;
   }

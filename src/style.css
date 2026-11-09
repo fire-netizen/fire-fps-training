@@ -92,3 +92,15 @@ h2 { font-size: 26px; margin: 6px 0 12px; line-height: 1.25; } h3 { font-size: 1
 .mist { margin-top: 14px; padding: 12px 15px; background: rgba(255, 150, 60, .09); border-radius: 10px; font-size: 13.5px; line-height: 1.7; } .mist ul { margin: 4px 0 0; padding-left: 18px; } .mist.good { background: rgba(75, 208, 139, .1); color: #9af0c2; }
 .expbox { margin-top: 16px; padding: 14px 16px; border-radius: 12px; background: rgba(255, 197, 49, .08); } .expbox b { color: var(--amber); } .expbox .bar { margin: 8px 0; height: 9px; } .lvline em { color: #ffd84a; font-style: normal; font-weight: 800; margin-left: 8px; }
 @media (max-width: 900px) { #mission { width: 250px; } #pcard { width: 220px; } h1 { font-size: 40px; } #keys { display: none; } }
+
+/* 5번 임무: 소화약제 선택 바 */
+.agentpick { position: fixed; left: 50%; bottom: 46px; transform: translateX(-50%); display: flex; gap: 8px; z-index: 20; pointer-events: none; }
+.agentpick .ag { position: relative; width: 142px; padding: 8px 8px 8px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; backdrop-filter: blur(8px); font-size: 12px; opacity: .8; }
+.agentpick .ag kbd { position: absolute; right: 6px; top: 6px; }
+.agentpick .ag i { display: block; width: 22px; height: 6px; border-radius: 3px; margin-bottom: 6px; }
+.agentpick .ag b { display: block; font-size: 13px; line-height: 1.25; padding-right: 20px; word-break: keep-all; }
+.agentpick .ag small { display: block; color: var(--mute); font-size: 10.5px; margin-top: 3px; line-height: 1.3; min-height: 28px; }
+.agentpick .ag em { display: block; font-style: normal; color: var(--amber); font-size: 11px; margin-top: 2px; }
+.agentpick .ag.on { opacity: 1; border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber), 0 0 18px rgba(255, 197, 49, .35); transform: translateY(-4px); }
+.agentpick .ag.empty { opacity: .35; }
+@media (max-width: 1100px) { .agentpick .ag { width: 96px; } .agentpick .ag small { display: none; } }

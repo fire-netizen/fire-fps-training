@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { Human } from '../character/human.js';
 import { clamp, damp, dampAngle, wrapAngle } from './util.js';
+import { AGENTS } from '../data/agents.js';
 
 export class CameraRig {
   constructor(engine, world) {
@@ -64,7 +65,9 @@ export class Player {
     this.sprint = false;
     this.mask = false;
     this.tool = null;
-    this.allowed = { hose: false, ext: false, tic: false };
+    this.allowed = { hose: false, ext: false, tic: false, agent: false };
+    this.agentSel = null;
+    this.agentAmt = {};
     this.hoseReady = false;
     this.tic = false;
     this.mode = 'jet';
@@ -109,13 +112,27 @@ export class Player {
     this.crouch = false;
     this.pin = true;
     this.firing = false;
+    this.agentSel = null;
+    for (const a of AGENTS) this.agentAmt[a.id] = 100;
+  }
+
+  selectAgent(i) {
+    const a = AGENTS[i];
+    if (!a || !this.allowed.agent) return;
+    this.agentSel = a.id;
+    this.equip('agent');
+    this.stats.ext = this.agentAmt[a.id] ?? 100;
+    this.G.ui.toast(`소화약제 선택 — ${a.name} (${a.info})`, 'info');
+    this.G.sfx.click();
   }
 
   equip(tool) {
     if (tool && !this.allowed[tool]) return false;
     if (tool === 'hose' && !this.hoseReady) return false;
     this.tool = tool;
-    this.human.setTool(tool);
+    const ag = tool === 'agent' && AGENTS.find((a) => a.id === this.agentSel);
+    this.human.setTool(tool === 'agent' ? (ag ? ag.visual : 'ext') : tool);
+    if (tool === 'agent') this.pin = false;
     this.human.setPin(this.pin);
     return true;
   }
@@ -134,7 +151,17 @@ export class Player {
     const cam = this.G.engine.camera;
     const o = this.G.camRig.pos, d = this.G.camRig.dir;
     const hit = this.G.world.raycast(o, d, 45);
-    this.aimDist = Math.max(2.5, hit.dist);
+    let dist = hit.dist;
+    // 화염도 조준 대상: 불꽃(구)과 교차하면 그 거리로 포물선을 보정
+    for (const f of this.G.fx.fires) {
+      if (!f.alive) continue;
+      const cx = f.pos.x - o.x, cy = f.pos.y + 0.55 * f.size - o.y, cz = f.pos.z - o.z;
+      const t = cx * d.x + cy * d.y + cz * d.z;
+      if (t <= 0 || t >= dist) continue;
+      const r = 0.85 * f.size + 0.25;
+      if (cx * cx + cy * cy + cz * cz - t * t < r * r) dist = t;
+    }
+    this.aimDist = Math.max(2.5, dist);
     this.aimPoint.copy(o).addScaledVector(d, this.aimDist);
     return this.aimPoint;
   }
@@ -148,8 +175,9 @@ export class Player {
     const wantAim = !!this.tool && this.tool !== 'tic' && (fireKey || inp.mouse(2));
     this.aiming = wantAim;
     if (inp.pressed('KeyC')) this.crouch = !this.crouch;
-    if (inp.pressed('Digit1')) { if (this.equip(this.tool === 'hose' ? null : 'hose')) G.ui.toast(this.tool ? '관창(방수)' : '장비 해제', 'info'); else if (this.allowed.hose) G.ui.toast('호스를 먼저 전개하세요', 'warn'); }
-    if (inp.pressed('Digit2')) { if (this.equip(this.tool === 'ext' ? null : 'ext')) G.ui.toast(this.tool ? '소화기' : '장비 해제', 'info'); }
+    if (this.allowed.agent) { for (let n = 0; n < AGENTS.length; n++) if (inp.pressed('Digit' + (n + 1))) this.selectAgent(n); }
+    if (!this.allowed.agent && inp.pressed('Digit1')) { if (this.equip(this.tool === 'hose' ? null : 'hose')) G.ui.toast(this.tool ? '관창(방수)' : '장비 해제', 'info'); else if (this.allowed.hose) G.ui.toast('호스를 먼저 전개하세요', 'warn'); }
+    if (!this.allowed.agent && inp.pressed('Digit2')) { if (this.equip(this.tool === 'ext' ? null : 'ext')) G.ui.toast(this.tool ? '소화기' : '장비 해제', 'info'); }
     if (inp.pressed('KeyT') && this.allowed.tic) { this.tic = !this.tic; G.sfx.click(); }
     if (inp.pressed('KeyQ') && this.tool === 'hose') { this.mode = this.mode === 'jet' ? 'fog' : 'jet'; G.ui.toast(this.mode === 'jet' ? '직사 방수 (원거리·강한 압력)' : '분무 방수 (넓은 범위·복사열 차단)', 'info'); G.sfx.click(); }
 
@@ -269,6 +297,27 @@ export class Player {
       this.sweepAccum += dy;
       G.passState && G.passState(dt, this);
       if (st.ext <= 0) G.ui.toast('소화기 방사 종료', 'warn');
+    } else if (this.tool === 'agent' && fireKey) {
+      const id = this.agentSel, amt = id ? this.agentAmt[id] ?? 0 : 0;
+      if (id && amt > 0) {
+        this.firing = true;
+        this.computeAim();
+        const m = this.muzzle(this._m);
+        const target = this._d.copy(this.aimPoint);
+        const sp = id === 'water' ? 21 : id === 'sand' ? 11 : 0, gr = id === 'water' ? 4.2 : id === 'sand' ? 9 : 0;
+        if (sp) { const t = target.distanceTo(m) / sp; target.y += 0.5 * gr * t * t; }
+        const dir = target.sub(m).normalize();
+        if (dir.dot(G.camRig.dir) < 0.2) dir.copy(G.camRig.dir);
+        fx.sprayAgent(m, dir, id, dt);
+        const a = AGENTS.find((x) => x.id === id);
+        this.agentAmt[id] = Math.max(0, amt - a.rate * dt);
+        st.ext = this.agentAmt[id];
+        if (id === 'water') water = 0.2; else powder = id === 'sand' ? 0.1 : 0.16;
+        if (this.agentAmt[id] <= 0) G.ui.toast(`${a.name} 소진 — 보급대(E)에서 충전하세요`, 'warn');
+      } else if (!this._agWarn) {
+        G.ui.toast(!id ? '먼저 소화약제를 고르세요 (1~6 키)' : '약제가 소진되었습니다 — 보급대(E)에서 충전', 'warn');
+        this._agWarn = true; setTimeout(() => (this._agWarn = false), 2000);
+      }
     } else if (this.tool === 'ext' && fireKey && this.pin && !this._pinWarn) {
       G.ui.toast('안전핀을 먼저 뽑으세요 (E)', 'warn'); this._pinWarn = true; setTimeout(() => (this._pinWarn = false), 2000);
     }

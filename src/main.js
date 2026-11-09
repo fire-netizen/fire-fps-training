@@ -37,6 +37,7 @@ class Game {
     this.player = new Player(this);
     this.ui = new UI(this.root, this);
     this.holdT = 0;
+    this.shake = 0;
     this.holdTarget = null;
     this.resolving = false;
     this.npc = null;
@@ -319,6 +320,7 @@ class Game {
     } else if (this.state === 'play') {
       P.update(dt);
       this.camRig.update(dt, P, inp, { aiming: P.aiming });
+      if (this.shake > 0) { const k = this.shake; cam.position.x += (Math.random() - 0.5) * k * 0.6; cam.position.y += (Math.random() - 0.5) * k * 0.6; cam.position.z += (Math.random() - 0.5) * k * 0.6; this.shake = Math.max(0, this.shake - dt * 1.8); }
       this.mission && this.mission.tick(dt);
       this.updateInteract(dt);
       if (!this.mission) this.npc.update(dt, { speed: 0 });

@@ -2,6 +2,7 @@ import { GearMission } from './m1-gear.js';
 import { ExteriorMission } from './m2-exterior.js';
 import { SmokeMission } from './m3-search.js';
 import { ExtinguishMission } from './m4-extinguish.js';
+import { AgentMission } from './m5-agents.js';
 
 export const MISSIONS = [
   {
@@ -14,7 +15,25 @@ export const MISSIONS = [
     create: (G, d) => new GearMission(G, d),
   },
   {
-    id: 'm2', no: '02', title: '주택 화재 — 외부 진압', dispatch: true, site: 'siteA', par: 170,
+    id: 'm5', no: '02', title: '소화약제 선택 실습 — 화재 종류별 소화', dispatch: false, par: 200,
+    summary: '나무·휘발유·배전반·나트륨·식용유·리튬이온 배터리. 6가지 화재마다 알맞은 소화약제를 골라 끕니다. 잘못 고르면 위험한 반응이 일어납니다.',
+    goal: '화재 종류(A·B·C·D·K급)별 소화약제 선택 · 금수성 물질 · 주수 금지',
+    call: ['위험물·소화약제 실습장에 6곳의 화재가 설정되어 있습니다.', '화재 대상을 보고 1~6번 키로 소화약제를 선택해 진압하세요.', '잘못된 약제는 확대·감전·폭발을 일으킬 수 있으니 안전거리(3~5m)를 지키세요.'],
+    objectives: ['소화약제 6종의 특징 확인 (1~6 키)', '화재 6곳을 알맞은 약제로 진압', '약제가 소진되면 보급대(E)에서 충전', '출입구에서 실습 종료 보고'],
+    tip: '1 물 · 2 분말 · 3 CO₂ · 4 포 · 5 팽창질석/모래 · 6 K급. 오른쪽 위 불꽃이 줄었다가 되살아나면 약제가 맞지 않는 것입니다.',
+    create: (G, d) => new AgentMission(G, d),
+  },
+  {
+    id: 'm4', no: '03', title: '초기 소화 — 화재 유형별 대응', dispatch: true, site: 'siteC', par: 150,
+    summary: '식당에서 동시에 난 일반·유류·전기 화재. 알맞은 소화수단과 소화기 사용법(PASS)을 익힙니다.',
+    goal: '화재 분류(A·B·C) · 소화기 사용법(PASS) · 사거리/자세',
+    call: ['[출동 지령] 상가 1층 식당 화재 신고, 주방·분전반·쓰레기통에서 각각 발화.', '건물 안 초기 소화 가능 범위. 화재 유형을 구분해 대응 바람.'],
+    objectives: ['소화기를 가져와 안전핀을 뽑는다', '화재 3곳을 알맞은 소화수단으로 진압', '출입구에서 상황 종료 보고'],
+    tip: '물(옥내소화전)은 일반화재에만 안전합니다. 유류·전기화재에 물을 쓰면 감점과 피해가 생깁니다. 소화기는 3~5m에서 쓸어 뿌리듯 분사하세요.',
+    create: (G, d) => new ExtinguishMission(G, d),
+  },
+  {
+    id: 'm2', no: '04', title: '주택 화재 — 외부 진압', dispatch: true, site: 'siteA', par: 170,
     summary: '화염이 분출하는 3층 건물. 호스를 전개하고 화점의 뿌리를 겨냥해 5곳을 진압합니다.',
     goal: '냉각소화 · 방수 요령 · 용수 관리 · 안전거리',
     call: ['[출동 지령] 3층 연립주택 2·3층 창문에서 화염 분출, 외부로 연소 확대 중.', '인명 피해 없음 확인. 외부 진압 후 지휘관에게 보고 바람.', '진입 금지 — 붕괴·낙하물 위험구역(적색 선) 밖에서 방수할 것.'],
@@ -23,22 +42,13 @@ export const MISSIONS = [
     create: (G, d) => new ExteriorMission(G, d),
   },
   {
-    id: 'm3', no: '03', title: '연기 속 인명검색·구조', dispatch: true, site: 'siteB', par: 190,
+    id: 'm3', no: '05', title: '연기 속 인명검색·구조', dispatch: true, site: 'siteB', par: 190,
     summary: '연기가 가득한 공동주택 실내. 수색하고, 뜨거운 문을 안전하게 열어 요구조자를 구조합니다.',
     goal: '낮은 자세 · 문 개방 절차(백드래프트) · 공기 관리 · 구조',
     call: ['[출동 지령] 5층 아파트 2층 세대 화재, 거주자 1명 미확인.', '현관 진입 후 실내 수색 및 인명구조 바람.', '공기호흡기 잔량에 유의하고 복귀 공기를 확보할 것.'],
     objectives: ['출입구에서 면체 착용 (E)', '거실 수색 후 분필 표시 · 안쪽 방 문 온도 확인', '낮은 자세(C)로 문 옆에서 개방 → 실내 화점 진압', '요구조자를 구조해 출구로 탈출'],
     tip: '연기와 열기는 위로 모입니다. C 키로 자세를 낮추세요. T 키 열화상 카메라는 연기 속 사람과 열원을 보여 줍니다. 건물 앞 현관에서 E 키로 진입합니다.',
     create: (G, d) => new SmokeMission(G, d),
-  },
-  {
-    id: 'm4', no: '04', title: '초기 소화 — 화재 유형별 대응', dispatch: true, site: 'siteC', par: 150,
-    summary: '식당에서 동시에 난 일반·유류·전기 화재. 알맞은 소화수단과 소화기 사용법(PASS)을 익힙니다.',
-    goal: '화재 분류(A·B·C) · 소화기 사용법(PASS) · 사거리/자세',
-    call: ['[출동 지령] 상가 1층 식당 화재 신고, 주방·분전반·쓰레기통에서 각각 발화.', '건물 안 초기 소화 가능 범위. 화재 유형을 구분해 대응 바람.'],
-    objectives: ['소화기를 가져와 안전핀을 뽑는다', '화재 3곳을 알맞은 소화수단으로 진압', '출입구에서 상황 종료 보고'],
-    tip: '물(옥내소화전)은 일반화재에만 안전합니다. 유류·전기화재에 물을 쓰면 감점과 피해가 생깁니다. 소화기는 3~5m에서 쓸어 뿌리듯 분사하세요.',
-    create: (G, d) => new ExtinguishMission(G, d),
   },
 ];
 

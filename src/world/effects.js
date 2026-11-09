@@ -1,6 +1,7 @@
 // 파티클 이펙트: 화염 · 연기 · 방수 · 분말 · 스파크 · 화재 객체
 import * as THREE from 'three';
 import { clamp, lerp, rand } from '../core/util.js';
+import { AGENT_IDS } from '../data/agents.js';
 
 const VERT = `
 attribute float aSize; attribute float aAlpha; attribute vec3 aColor;
@@ -119,6 +120,8 @@ export class Fire {
     this.onOut = o.onOut || null;
     this.thermal = true;
     this.id = o.id || '';
+    this.tint = o.tint || null;
+    this.light = o.light || '#ff7a2a';
   }
 
   get intensity() { return this.alive ? clamp(this.hp / this.maxHp, 0.12, 1.3) : 0; }
@@ -162,7 +165,7 @@ export class Fire {
         x: this.pos.x + Math.cos(a) * r, y: this.pos.y + rand(0, 0.25), z: this.pos.z + Math.sin(a) * r,
         vx: rand(-0.35, 0.35), vy: rand(1.2, 2.6) * (0.6 + 0.5 * I), vz: rand(-0.35, 0.35),
         life: rand(0.55, 1.05) * (0.6 + 0.5 * I), s0: rand(0.7, 1.15) * sz * (0.6 + 0.5 * I), s1: rand(0.15, 0.4) * sz,
-        a0: 0.5, a1: 0, c0: [1.0, 0.62, 0.18], c1: [0.9, 0.16, 0.03], drag: 0.4,
+        a0: 0.5, a1: 0, c0: this.tint ? this.tint[0] : [1.0, 0.62, 0.18], c1: this.tint ? this.tint[1] : [0.9, 0.16, 0.03], drag: 0.4,
       });
     }
     // 연기
@@ -195,6 +198,11 @@ export class Effects {
     this.water = new ParticleSystem(engine, 900);
     this.mist = new ParticleSystem(engine, 700);
     this.powder = new ParticleSystem(engine, 800);
+    this.agent = new ParticleSystem(engine, 1400);
+    this.agentKind = new Uint8Array(1400);
+    this.agent.onStep = (i, p, v) => this._agentStep(i, p, v);
+    this.onAgentHit = null;
+    this.blasts = [];
     this.fires = [];
     this.wind = new THREE.Vector3(0.35, 0, 0.1);
     this.sources = []; // 연기 배출구(건물 창문 등)
@@ -293,6 +301,78 @@ export class Effects {
     }
   }
 
+  _agentStep(i, p) {
+    if (p[1] < 0.03) return true;
+    if (this.world.pointInSolid(p[0], p[1], p[2])) return true;
+    for (const f of this.fires) {
+      if (!f.alive) continue;
+      const dx = p[0] - f.pos.x, dz = p[2] - f.pos.z, dy = p[1] - f.pos.y;
+      const r = (0.75 + 0.35 * f.size) * f.size * 1.5;
+      if (dx * dx + dz * dz > r * r || dy < -0.5 || dy > 2.3 * f.size) continue;
+      this.onAgentHit && this.onAgentHit(f, AGENT_IDS[this.agentKind[i]], dy < 0.55 * f.size);
+      return true;
+    }
+    return false;
+  }
+
+  // 소화약제 방사 (5번 임무): water | powder | co2 | foam | sand | kagent
+  sprayAgent(origin, dir, agent, dt) {
+    const C = {
+      water: { n: 160, sp: [20, 22], r: 0.03, life: 1.8, s0: 0.12, s1: 0.18, a0: 0.8, a1: 0.5, c0: [0.78, 0.93, 1], grav: -4.2, drag: 0 },
+      powder: { n: 260, sp: [8.5, 12], r: 0.16, life: 0.75, s0: 0.1, s1: 0.85, a0: 0.75, a1: 0, c0: [0.97, 0.96, 0.93], grav: -1, drag: 1.1 },
+      co2: { n: 200, sp: [10, 13], r: 0.12, life: 0.55, s0: 0.15, s1: 0.9, a0: 0.55, a1: 0, c0: [0.95, 0.98, 1], c1: [0.78, 0.9, 1], grav: 0, drag: 1.4 },
+      foam: { n: 170, sp: [10, 12], r: 0.07, life: 1.0, s0: 0.22, s1: 0.5, a0: 0.85, a1: 0.6, c0: [0.96, 0.94, 0.82], grav: -3, drag: 0.2 },
+      sand: { n: 150, sp: [10.5, 11.5], r: 0.08, life: 1.1, s0: 0.09, s1: 0.1, a0: 1, a1: 0.9, c0: [0.74, 0.62, 0.42], grav: -9, drag: 0 },
+      kagent: { n: 170, sp: [11, 13], r: 0.12, life: 0.9, s0: 0.15, s1: 0.6, a0: 0.55, a1: 0, c0: [0.88, 0.97, 0.72], grav: -3, drag: 0.3 },
+    }[agent];
+    if (!C) return;
+    const kind = AGENT_IDS.indexOf(agent);
+    const n = Math.floor(C.n * dt + Math.random());
+    const side = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
+    const vert = new THREE.Vector3().crossVectors(side, dir).normalize();
+    for (let k = 0; k < n; k++) {
+      const a = rand(0, Math.PI * 2), r = Math.sqrt(Math.random()) * C.r, sp = rand(C.sp[0], C.sp[1]);
+      this.agentKind[this.agent.cursor] = kind;
+      this.agent.emit({
+        x: origin.x, y: origin.y, z: origin.z,
+        vx: (dir.x + (side.x * Math.cos(a) + vert.x * Math.sin(a)) * r) * sp,
+        vy: (dir.y + (side.y * Math.cos(a) + vert.y * Math.sin(a)) * r) * sp,
+        vz: (dir.z + (side.z * Math.cos(a) + vert.z * Math.sin(a)) * r) * sp,
+        life: C.life * rand(0.9, 1.1), s0: C.s0, s1: C.s1, a0: C.a0, a1: C.a1, c0: C.c0, c1: C.c1 || C.c0, grav: C.grav, drag: C.drag,
+      });
+    }
+  }
+
+  // 폭발 연출 (나트륨 + 물 등)
+  explode(pos, power = 1) {
+    for (let i = 0; i < 170; i++) {
+      const th = rand(0, Math.PI * 2), ph = Math.acos(rand(-0.3, 1)), sp = rand(4, 12) * power;
+      this.flame.emit({ x: pos.x, y: pos.y, z: pos.z, vx: Math.sin(ph) * Math.cos(th) * sp, vy: Math.cos(ph) * sp * 0.9 + 1, vz: Math.sin(ph) * Math.sin(th) * sp, life: rand(0.5, 1.2), s0: 1.0 * power, s1: 3.4 * power, a0: 0.8, a1: 0, c0: [1, 0.9, 0.5], c1: [0.9, 0.25, 0.05], drag: 1.2 });
+    }
+    for (let i = 0; i < 70; i++) {
+      const th = rand(0, Math.PI * 2), ph = rand(0.1, 1.5), sp = rand(6, 16) * power;
+      this.spark.emit({ x: pos.x, y: pos.y, z: pos.z, vx: Math.cos(th) * Math.cos(ph) * sp, vy: Math.sin(ph) * sp, vz: Math.sin(th) * Math.cos(ph) * sp, life: rand(0.9, 1.9), s0: 0.09, s1: 0.03, a0: 1, a1: 0, c0: [1, 0.85, 0.4], c1: [1, 0.3, 0.1], grav: -9 });
+    }
+    for (let i = 0; i < 45; i++) {
+      this.smoke.emit({ x: pos.x + rand(-0.6, 0.6), y: pos.y + rand(0, 1), z: pos.z + rand(-0.6, 0.6), vx: rand(-1.5, 1.5), vy: rand(1.5, 4), vz: rand(-1.5, 1.5), life: rand(3, 5.5), s0: 1.2, s1: 5 * power, a0: 0.5, a1: 0, c0: [0.08, 0.08, 0.09], c1: [0.35, 0.33, 0.3], drag: 0.3 });
+    }
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 14), new THREE.MeshBasicMaterial({ color: '#ffd9a0', transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false }));
+    mesh.position.copy(pos);
+    this.engine.scene.add(mesh);
+    this.blasts.push({ pos: pos.clone(), t: 0, dur: 0.65, power, mesh });
+  }
+
+  _updateBlasts(dt) {
+    for (let i = this.blasts.length - 1; i >= 0; i--) {
+      const b = this.blasts[i];
+      b.t += dt;
+      const k = b.t / b.dur;
+      if (k >= 1) { this.engine.scene.remove(b.mesh); b.mesh.geometry.dispose(); b.mesh.material.dispose(); this.blasts.splice(i, 1); continue; }
+      b.mesh.scale.setScalar(0.6 + k * 6.5 * b.power);
+      b.mesh.material.opacity = 0.55 * (1 - k) * (1 - k);
+    }
+  }
+
   // 소화기 분말 방사
   sprayPowder(origin, dir, dt) {
     const n = Math.floor(260 * dt + Math.random());
@@ -327,11 +407,14 @@ export class Effects {
     }
     const sc = this.engine.pixelScale();
     this.flame.update(dt, sc); this.spark.update(dt, sc); this.smoke.update(dt, sc);
-    this.water.update(dt, sc); this.mist.update(dt, sc); this.powder.update(dt, sc);
+    this.water.update(dt, sc); this.mist.update(dt, sc); this.powder.update(dt, sc); this.agent.update(dt, sc);
+    this._updateBlasts(dt);
   }
 
   clearAll() {
-    for (const s of [this.flame, this.spark, this.smoke, this.water, this.mist, this.powder]) s.clear();
+    for (const s of [this.flame, this.spark, this.smoke, this.water, this.mist, this.powder, this.agent]) s.clear();
+    for (const b of this.blasts) { this.engine.scene.remove(b.mesh); b.mesh.geometry.dispose(); b.mesh.material.dispose(); }
+    this.blasts.length = 0; this.onAgentHit = null;
     this.fires.length = 0; this.sources.length = 0;
   }
 
@@ -340,10 +423,11 @@ export class Effects {
     for (const f of this.fires) {
       if (!f.alive) continue;
       out.push({
-        pos: new THREE.Vector3(f.pos.x, f.pos.y + 1.2 * f.size, f.pos.z), color: '#ff7a2a',
+        pos: new THREE.Vector3(f.pos.x, f.pos.y + 1.2 * f.size, f.pos.z), color: f.light,
         intensity: (22 + Math.random() * 6) * f.intensity * f.size, distance: 15 + 8 * f.size,
       });
     }
+    for (const b of this.blasts) out.push({ pos: b.pos.clone().add(new THREE.Vector3(0, 0.6, 0)), color: '#ffd9a0', intensity: 140 * (1 - b.t / b.dur), distance: 26 });
     return out;
   }
 }
