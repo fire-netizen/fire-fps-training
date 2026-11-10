@@ -13,6 +13,8 @@ import { MISSIONS, missionById } from './missions/index.js';
 import { Human } from './character/human.js';
 import { clamp, lerp, shuffle } from './core/util.js';
 import { fmtTime } from './core/util.js';
+import { IS_TOUCH } from './core/device.js';
+import { TouchControls } from './ui/touch.js';
 
 const FULL_GEAR = { pants: true, boots: true, coat: true, hood: true, scba: true, helmet: true, gloves: true };
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -53,6 +55,7 @@ class Game {
     addEventListener('keydown', (e) => {
       if (e.code === 'KeyM' && !(e.target && /INPUT/.test(e.target.tagName))) { this.sfx.setMuted(!this.sfx.muted); this.ui.toast(this.sfx.muted ? '소리 끔' : '소리 켬', 'info'); }
     });
+    this.touch = IS_TOUCH ? new TouchControls(this) : null;
     this.buildHub();
     window.__game = this;
   }
@@ -139,6 +142,7 @@ class Game {
     await this.ui.fade(false, 700);
     await this.ui.talk('김 팀장 (소방위)', [`${this.progress.name} 대원! 자네가 오늘 배치된 신임 소방사로군.`, '여기는 119 안전센터. 출동 지령이 떨어지면 소방차에 올라 화재 현장으로 향한다.', '화면 앞의 출동 상황판(E)에서 임무를 선택하게. 처음에는 보호장비 착용부터다.']);
     this.ui.close();
+    if (IS_TOUCH) this.ui.toast('왼쪽 화면 드래그: 이동 · 오른쪽 화면 드래그: 시점 · E 버튼: 상호작용', 'info');
     this.resume();
   }
 
@@ -330,6 +334,7 @@ class Game {
       this.engine.follow(P.pos);
     }
 
+    this.touch && this.touch.update();
     // 월드 효과
     if (this.state !== 'modal') this.fx.update(this.state === 'dispatch' ? 0.016 : dt);
     if (this.world.zone === 'outdoor') this.world.truck.userData.flash(this.time + (this.state === 'dispatch' ? 0 : 0));

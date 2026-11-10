@@ -1,5 +1,6 @@
 // 렌더러 · 카메라 · 조명 · 하늘 · 안개 · 동적 조명 풀
 import * as THREE from 'three';
+import { IS_TOUCH } from './device.js';
 
 export const ZONES = {
   outdoor: { fog: '#c7a58c', density: 0.0072, hemi: 1.25, sun: 2.7, bg: '#c7a58c', hemiSky: '#a9bfe0', hemiGround: '#5a4a3c', exposure: 1.05 },
@@ -11,8 +12,8 @@ export const ZONES = {
 export class Engine {
   constructor(container) {
     this.container = container;
-    const r = (this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }));
-    r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    const r = (this.renderer = new THREE.WebGLRenderer({ antialias: !IS_TOUCH, powerPreference: 'high-performance' }));
+    r.setPixelRatio(Math.min(window.devicePixelRatio || 1, IS_TOUCH ? 1.25 : 1.75));
     r.setSize(innerWidth, innerHeight);
     r.shadowMap.enabled = true;
     r.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -32,7 +33,7 @@ export class Engine {
     this.scene.add(this.hemi);
     this.sun = new THREE.DirectionalLight('#ffd9a8', 2.7);
     this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(2048, 2048);
+    this.sun.shadow.mapSize.set(IS_TOUCH ? 1024 : 2048, IS_TOUCH ? 1024 : 2048);
     const sc = this.sun.shadow.camera;
     Object.assign(sc, { left: -48, right: 48, top: 48, bottom: -48, near: 1, far: 220 });
     this.sun.shadow.bias = -0.0004;

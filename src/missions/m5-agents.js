@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import { Mission } from './mission.js';
 import { QUIZ } from '../data/quizzes.js';
 import { AGENTS } from '../data/agents.js';
+import { bindAgentTiles } from '../ui/touch.js';
+import { IS_TOUCH } from '../core/device.js';
 
 // eff: 약제별 효과 계수(1=최적). weak: 효과 낮음(불이 줄었다 되살아남). bad: 위험 반응.
 const RULES = {
@@ -116,7 +118,7 @@ export class AgentMission extends Mission {
       .addObj('report', '출입구에서 실습 종료 보고');
     this.setActive('pick');
     G.ui.banner('화재 종류에 맞는 약제를 고르세요', 2800);
-    G.ui.toast('1~6 키: 물 · 분말 · CO₂ · 포 · 팽창질석/모래 · K급 — 클릭으로 방사', 'info');
+    G.ui.toast(IS_TOUCH ? '아래 약제 칸을 눌러 선택한 뒤 오른쪽 분사 버튼으로 뿌리세요' : '1~6 키: 물 · 분말 · CO₂ · 포 · 팽창질석/모래 · K급 — 클릭으로 방사', 'info');
   }
 
   buildPicker() {
@@ -126,6 +128,7 @@ export class AgentMission extends Mission {
     document.body.appendChild(el);
     this.pickEl = el;
     this.tiles = [...el.querySelectorAll('.ag')];
+    bindAgentTiles(this.G, el);
   }
 
   // 약제가 불에 닿을 때마다 호출 (입자 1개당)
