@@ -121,20 +121,20 @@ html, body { overscroll-behavior: none; -webkit-user-select: none; user-select: 
 .t-btn small { font-size: 10px; font-weight: 500; margin-top: 3px; color: #cfd8e3; }
 .t-btn.on { background: rgba(255,140,40,.75); border-color: #ffd24a; }
 .t-pause { right: 12px; top: 12px; width: 40px; height: 40px; font-size: 16px; z-index: 3; }
-.t-actions { position: absolute; right: 14px; bottom: 14px; width: 200px; height: 170px; pointer-events: none; }
+.t-actions { position: absolute; right: 14px; bottom: 14px; width: 88px; height: 270px; pointer-events: none; }
 .t-actions .t-btn { position: absolute; }
 .t-fire { right: 0; bottom: 0; width: 88px; height: 88px; font-size: 30px; border-color: #ffb347; background: rgba(200,60,20,.55); }
-.t-e { right: 100px; bottom: 6px; width: 70px; height: 70px; }
+.t-e { right: 9px; bottom: 98px; width: 70px; height: 70px; }
 .t-e.pulse { border-color: #ffd24a; background: rgba(255,190,40,.55); animation: tpulse 1s infinite; }
 @keyframes tpulse { 50% { transform: scale(1.1); } }
 .t-sm { width: 52px; height: 52px; font-size: 15px; }
-.t-actions .t-sm { right: 12px; bottom: 100px; }
-.t-tools { position: absolute; right: 200px; bottom: 14px; width: 100px; display: flex; flex-wrap: wrap-reverse; gap: 6px; justify-content: flex-end; pointer-events: none; }
+.t-actions .t-sm { right: 86px; bottom: 112px; }
+.t-tools { position: absolute; right: 116px; bottom: 14px; width: 100px; display: flex; flex-wrap: wrap-reverse; gap: 6px; justify-content: flex-end; pointer-events: none; }
 .t-tools .t-btn { position: static; width: 46px; height: 46px; font-size: 14px; }
 .t-tools .t-btn small { font-size: 8px; }
 body.touch #keys { display: none; }
-body.touch .agentpick { pointer-events: auto; left: 31%; transform: none; bottom: 8px; gap: 4px; z-index: 30; }
-body.touch .agentpick .ag { width: 62px; padding: 5px 5px 5px 6px; border-radius: 9px; font-size: 11px; }
+body.touch .agentpick { pointer-events: auto; left: 30%; right: 118px; transform: none; bottom: 8px; gap: 4px; z-index: 30; justify-content: flex-start; }
+body.touch .agentpick .ag { flex: 1 1 0; min-width: 0; max-width: 72px; width: auto; box-sizing: border-box; padding: 5px 5px 5px 6px; border-radius: 9px; font-size: 11px; }
 body.touch .agentpick .ag small, body.touch .agentpick .ag kbd { display: none; }
 body.touch .agentpick .ag b { font-size: 11px; padding-right: 0; }
 body.touch .agentpick .ag i { margin-bottom: 3px; }
