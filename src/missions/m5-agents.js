@@ -185,7 +185,7 @@ export class AgentMission extends Mission {
       G.sfx.hurt(); G.sfx.alarm && G.sfx.alarm();
       // 충격파로 뒤로 밀림
       const away = new THREE.Vector3(P.pos.x - f.pos.x, 0, P.pos.z - f.pos.z).normalize();
-      G.world.move(P.pos, P.radius, away.x * 1.8, away.z * 1.8);
+      for (let k = 0; k < 12; k++) G.world.move(P.pos, P.radius, away.x * 0.15, away.z * 0.15); // 작은 단계로 밀어 벽을 뚫지 않게
     }
   }
 
@@ -209,6 +209,12 @@ export class AgentMission extends Mission {
       const em = t.querySelector('.amt');
       if (em.textContent !== amt + '%') em.textContent = amt + '%';
       t.classList.toggle('empty', amt <= 0);
+    }
+    // 안전장치: 실습장 밖으로 나가면 입구로 복귀
+    const O = this.I.O;
+    if (P.pos.x < O.x - 9.4 || P.pos.x > O.x + 9.4 || P.pos.z < O.z - 0.1 || P.pos.z > O.z + 13.6) {
+      P.teleport(this.I.spawn, 0);
+      G.ui.toast('실습장 안으로 복귀했습니다', 'info');
     }
     // 효과 약한 약제 사용 후 불길 되살아남(회복)
     for (const f of this.fires) {
