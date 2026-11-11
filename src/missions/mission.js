@@ -63,10 +63,19 @@ export class Mission {
   addHuman(h, body = false) {
     this.humans.push(h); this.G.engine.scene.add(h.root);
     if (body) {
+      h.civ = true; // 서 있는 사람(일반인·동료): 진압 후 박수
       const p = h.root.position;
       (this.bodySolids || (this.bodySolids = [])).push(this.G.world.solid(p.x, 0.9, p.z, 0.7, 1.8, 0.7, 'person', { water: false, view: false }));
     }
     return h;
+  }
+
+  // 화재 진압 후 주변 사람들이 박수(동작 + 소리). 사람이 없으면 아무 일도 없음
+  cheer(sec = 2.6) {
+    const list = this.humans.filter((h) => h.civ);
+    if (!list.length) return;
+    for (const h of list) h.clap(sec * (0.85 + Math.random() * 0.3));
+    this.G.sfx.applause(sec, Math.min(8, list.length + 2));
   }
 
   finish(success, reason = '') {

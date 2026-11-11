@@ -114,7 +114,7 @@ export class ExteriorMission extends Mission {
     // 진압 수
     const out = this.fires.filter((f) => !f.alive).length;
     this.setCount('fires', `${out}/${this.fires.length}`);
-    if (out === this.fires.length) { if (!this.objs.find((o) => o.id === 'fires').done) { this.complete('fires'); G.ui.banner('화재 진압 완료'); } }
+    if (out === this.fires.length) { if (!this.objs.find((o) => o.id === 'fires').done) { this.complete('fires'); G.ui.banner('화재 진압 완료'); this.cheer(3); } }
     if (this.fires.some((f) => f.alive) === false) { /* 보고 단계 */ }
 
     // 호스 라인
@@ -150,7 +150,15 @@ export class ExteriorMission extends Mission {
     } else if (!this.reported) this.markerTarget = { pos: new THREE.Vector3(this.captain.root.position.x, 2.5, this.captain.root.position.z), label: '지휘관 · 상황 종료 보고' };
     else this.markerTarget = null;
     this.captain.update(dt, { speed: 0 });
-    this.humans.forEach((h) => h !== this.captain && h.update(dt, { speed: 0 }));
+    this.humans.forEach((h) => {
+      if (h === this.captain) return;
+      if (h.clapT > 0) { // 박수 칠 때는 플레이어 쪽을 바라봄
+        const a = Math.atan2(P.pos.x - h.root.position.x, P.pos.z - h.root.position.z);
+        const d = ((a - h.root.rotation.y + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+        h.root.rotation.y += d * Math.min(1, dt * 5);
+      }
+      h.update(dt, { speed: 0 });
+    });
   }
 
   debris(p) {

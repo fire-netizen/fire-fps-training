@@ -94,7 +94,7 @@ export class ExtinguishMission extends Mission {
   updateCount() {
     const out = this.fires.filter((f) => !f.alive).length;
     this.setCount('fires', `${out}/${this.fires.length}`);
-    if (out === this.fires.length) { this.complete('fires'); this.G.ui.banner('화재 3곳 진압 완료'); }
+    if (out === this.fires.length) { this.complete('fires'); this.G.ui.banner('화재 3곳 진압 완료'); this.cheer(); }
   }
 
   wrongAgent(f, type) {

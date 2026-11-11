@@ -181,7 +181,7 @@ export class SmokeMission extends Mission {
       G.ui.toast('요구조자 발견!', 'good');
     }
     // 화점
-    if (!this.fire.alive && !this.objs.find((o) => o.id === 'fire').done) { this.complete('fire'); G.ui.toast('실내 화점 진압 완료', 'good'); }
+    if (!this.fire.alive && !this.objs.find((o) => o.id === 'fire').done) { this.complete('fire'); G.ui.toast('실내 화점 진압 완료', 'good'); this.cheer(); }
     // 요구조자 상태
     if (D.open && !this.exited) {
       const rate = (this.fire.alive ? 0.7 : 0.3) * (P.carry ? 0.8 : 1);
