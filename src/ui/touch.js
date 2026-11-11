@@ -26,6 +26,7 @@ export class TouchControls {
         <button class="t-btn t-sm" data-tool="Q">Q<small>직사/분무</small></button>
       </div>
       <div class="t-actions">
+        <button class="t-btn t-sm t-hint hidden" data-act="hint">💡<small>힌트</small></button>
         <button class="t-btn t-sm" data-act="crouch">⬇<small>자세</small></button>
         <button class="t-btn t-e" data-act="use">E<small>상호작용</small></button>
         <button class="t-btn t-fire" data-act="fire">💧<small>방수</small></button>
@@ -60,6 +61,8 @@ export class TouchControls {
     hold(this.useBtn, () => { inp.hit.add('KeyE'); inp.down.add('KeyE'); }, () => inp.down.delete('KeyE'));
     const tap = (el, fn) => el.addEventListener('pointerdown', (e) => { fn(); e.preventDefault(); });
     tap(this.$('[data-act="crouch"]'), () => inp.hit.add('KeyC'));
+    this.hintBtn = this.$('[data-act="hint"]');
+    tap(this.hintBtn, () => inp.hit.add('KeyH'));
     tap(this.$('[data-act="pause"]'), () => inp.hit.add('Escape'));
     const code = { 1: 'Digit1', 2: 'Digit2', T: 'KeyT', Q: 'KeyQ' };
     for (const b of this.toolBtns) tap(b, () => inp.hit.add(code[b.dataset.tool]));
@@ -73,6 +76,9 @@ export class TouchControls {
     const T = 0.35;
     set('KeyD', v.x > T); set('KeyA', v.x < -T); set('KeyW', v.y < -T); set('KeyS', v.y > T);
     set('ShiftLeft', Math.hypot(v.x, v.y) > 0.95);
+    // 아날로그 값(분사 중 조준에 사용): 약하게 밀면 천천히 움직임
+    const st = this.inp.stick;
+    st.x = v.x; st.y = v.y; st.analog = Math.hypot(v.x, v.y) > 0.01;
   }
 
   joyDown(e) {
@@ -122,6 +128,7 @@ export class TouchControls {
     show(this.toolBtns[2], !!A.tic);
     show(this.toolBtns[3], P.tool === 'hose');
     show(this.fireBtn, !!P.tool && P.tool !== 'tic');
+    show(this.hintBtn, !!(G.mission && G.mission.hint));
     const ag = P.tool === 'agent';
     this.fireBtn.firstChild.textContent = P.tool === 'ext' || ag ? '🧯' : '💧';
     this.fireBtn.querySelector('small').textContent = P.tool === 'ext' || ag ? '분사' : '방수';

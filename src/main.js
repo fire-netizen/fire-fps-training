@@ -323,7 +323,7 @@ class Game {
       if (c.t >= c.dur && !c.finished) { c.finished = true; c.done(); }
     } else if (this.state === 'play') {
       P.update(dt);
-      this.camRig.update(dt, P, inp, { aiming: P.aiming });
+      this.camRig.update(dt, P, inp, { aiming: P.aiming, spray: !!P.spray, aimYaw: P.aimCmd ? P.aimCmd.yaw : 0, aimPitch: P.aimCmd ? P.aimCmd.pitch : 0 });
       if (this.shake > 0) { const k = this.shake; cam.position.x += (Math.random() - 0.5) * k * 0.6; cam.position.y += (Math.random() - 0.5) * k * 0.6; cam.position.z += (Math.random() - 0.5) * k * 0.6; this.shake = Math.max(0, this.shake - dt * 1.8); }
       this.mission && this.mission.tick(dt);
       this.updateInteract(dt);
@@ -388,6 +388,25 @@ class Game {
   }
 }
 
-const game = new Game();
-game.loop();
-game.boot();
+// WebGL을 만들 수 없거나 컨텍스트를 잃으면 빈 화면 대신 안내 화면을 보여 줌
+function showWebglFail(msg) {
+  if (document.querySelector('.webgl-fail')) return;
+  const el = document.createElement('div');
+  el.className = 'webgl-fail';
+  el.innerHTML = `<div><h2>화면을 표시할 수 없습니다</h2><p>${msg}</p>
+    <p>• 최신 Chrome / Safari / Edge 로 열어 보세요<br>• 앱 안 브라우저(카카오톡 등)라면 「다른 브라우저로 열기」를 선택하세요<br>• 절전·데이터 절약 모드를 끄고, 다른 탭을 닫은 뒤 다시 시도하세요</p>
+    <button class="btn primary" onclick="location.reload()">다시 시도</button></div>`;
+  document.body.append(el);
+}
+
+let game = null;
+try {
+  game = new Game();
+  const cv = game.engine.renderer.domElement;
+  cv.addEventListener('webglcontextlost', (e) => { e.preventDefault(); showWebglFail('그래픽 연결이 끊어졌습니다(메모리 부족 등).'); }, false);
+  game.loop();
+  game.boot();
+} catch (err) {
+  console.error(err);
+  showWebglFail('이 기기 또는 브라우저에서 3D 그래픽(WebGL)을 시작하지 못했습니다.');
+}

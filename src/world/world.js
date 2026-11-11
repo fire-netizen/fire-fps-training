@@ -617,6 +617,30 @@ export class World {
     this.box(grp, 0.55, 0.14, 0.3, wx(XS[5]), 0.99, wz(11.6), std('#22272d', 0.4, 0.3), { round: 0.02 });
     this.box(grp, 0.5, 0.03, 0.05, wx(XS[5]), 1.07, wz(11.46), std('#22c55e', 0.4, 0.2, { emissive: '#22c55e', emissiveIntensity: 0.7 }));
     sign(XS[5], '리튬이온 배터리', '#1f7a4d');
+    // 바닥 대상물 표시(큰 글씨 · 급수별 배경색). 위에서 봤을 때 글자가 바로 보이도록 회전,
+    // 모바일 GPU z-fighting 방지: 8cm 띄우고 depthWrite off + renderOrder + polygonOffset
+    const floorLabel = (x, line1, line2, bg) => {
+      const c = document.createElement('canvas'); c.width = 512; c.height = 256;
+      const g = c.getContext('2d');
+      g.fillStyle = bg; g.fillRect(0, 0, 512, 256);
+      g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 10; g.strokeRect(8, 8, 496, 240);
+      g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 6;
+      g.font = 'bold 68px sans-serif'; g.fillText(line1, 256, 96, 470);
+      g.font = 'bold 44px sans-serif'; g.fillText(line2, 256, 178, 470);
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(2.7, 1.35), new THREE.MeshBasicMaterial({ map: t, transparent: true, opacity: 0.96, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
+      m.rotation.set(-Math.PI / 2, 0, Math.PI); // 윗면이 +z(화재 쪽)를 향하게 → 플레이어가 화재를 향할 때 글자가 바로 읽힘
+      m.position.set(wx(x), 0.08, wz(FZ - 1.5));
+      m.renderOrder = 5;
+      grp.add(m);
+    };
+    floorLabel(XS[0], '나무·종이', 'A급 · 일반화재', '#7a5230');
+    floorLabel(XS[1], '휘발유(가솔린)', 'B급 · 유류화재', '#b02a1a');
+    floorLabel(XS[2], '배전반', 'C급 · 전기화재', '#2d5fa8');
+    floorLabel(XS[3], '나트륨(Na)', 'D급 · 금속화재(금수성)', '#7a4a9a');
+    floorLabel(XS[4], '식용유(튀김)', 'K급 · 주방화재', '#b9731c');
+    floorLabel(XS[5], '리튬이온 배터리', '배터리 화재', '#1f7a4d');
     // 거리선(3~5m 사용 거리)
     this.box(grp, 18, 0.01, 0.12, wx(0), 0.02, wz(FZ - 4.2), std('#e8c32a', 0.8, 0), { cast: false });
     this.box(grp, 3.2, 0.3, 0.04, wx(-8.2), 0.4, wz(FZ - 4.2), new THREE.MeshStandardMaterial({ map: labelTexture('사용 거리 3~5m', { w: 256, h: 64, bg: '#e8c32a', fg: '#111', font: 'bold 34px sans-serif' }), roughness: 0.6 }), { cast: false });
@@ -631,12 +655,12 @@ export class World {
     I.exit = I.p(0, 0, 0.5);
     I.supplyPos = I.p(-8.0, 0, 3.0);
     I.fires = [
-      { id: 'wood', type: 'A', pos: I.p(XS[0], 1.35, FZ + 0.3), size: 0.9, hp: 90, label: '나무', smoke: 1.0 },
-      { id: 'gas', type: 'B', pos: I.p(XS[1], 1.05, FZ + 0.3), size: 0.85, hp: 100, label: '휘발유', smoke: 1.8, tint: [[1, 0.55, 0.12], [0.55, 0.1, 0.02]] },
-      { id: 'elec', type: 'C', pos: I.p(XS[2], 1.0, FZ + 0.2), size: 0.7, hp: 80, label: '배전반', smoke: 0.4, tint: [[0.72, 0.86, 1], [0.3, 0.5, 1]], light: '#9cc8ff' },
-      { id: 'sodium', type: 'D', pos: I.p(XS[3], 1.15, FZ + 0.3), size: 0.75, hp: 90, label: '나트륨', smoke: 0.6, tint: [[1, 0.95, 0.4], [1, 0.7, 0.1]], light: '#ffe36a' },
-      { id: 'oil', type: 'K', pos: I.p(XS[4], 1.3, FZ + 0.3), size: 0.8, hp: 100, label: '식용유', smoke: 1.2 },
-      { id: 'li', type: 'L', pos: I.p(XS[5], 1.1, FZ + 0.3), size: 0.75, hp: 160, label: '리튬이온 배터리', smoke: 1.5, tint: [[1, 0.85, 0.6], [1, 0.3, 0.1]] },
+      { id: 'wood', type: 'A', pos: I.p(XS[0], 1.35, FZ + 0.3), size: 0.9, hp: 90, label: '나무', smoke: 1.0, tint: [[1, 0.6, 0.15], [0.9, 0.2, 0.03]], smokeC: [[0.55, 0.55, 0.55], [0.78, 0.77, 0.74]], smokeA: 0.4 },
+      { id: 'gas', type: 'B', pos: I.p(XS[1], 1.05, FZ + 0.3), size: 0.85, hp: 100, label: '휘발유', smoke: 1.8, tint: [[1, 0.55, 0.12], [0.55, 0.1, 0.02]], smokeC: [[0.02, 0.02, 0.02], [0.12, 0.11, 0.1]], smokeA: 0.7 },
+      { id: 'elec', type: 'C', pos: I.p(XS[2], 1.0, FZ + 0.2), size: 0.7, hp: 80, label: '배전반', smoke: 0.4, tint: [[0.55, 0.78, 1], [0.15, 0.35, 1]], light: '#9cc8ff', smokeC: [[0.7, 0.72, 0.76], [0.85, 0.87, 0.9]], smokeA: 0.22 },
+      { id: 'sodium', type: 'D', pos: I.p(XS[3], 1.15, FZ + 0.3), size: 0.75, hp: 90, label: '나트륨', smoke: 0.6, tint: [[1, 1, 0.85], [1, 0.8, 0.2]], light: '#ffe36a', smokeC: [[0.9, 0.9, 0.88], [1, 1, 0.98]], smokeA: 0.5 },
+      { id: 'oil', type: 'K', pos: I.p(XS[4], 1.3, FZ + 0.3), size: 0.8, hp: 100, label: '식용유', smoke: 1.2, tint: [[1, 0.9, 0.25], [0.95, 0.5, 0.05]], smokeC: [[0.22, 0.22, 0.23], [0.45, 0.45, 0.45]], smokeA: 0.6 },
+      { id: 'li', type: 'L', pos: I.p(XS[5], 1.1, FZ + 0.3), size: 0.75, hp: 160, label: '리튬이온 배터리', smoke: 1.5, tint: [[1, 0.7, 0.3], [1, 0.3, 0.08]], smokeC: [[0.88, 0.88, 0.9], [1, 1, 1]], smokeA: 0.65 },
     ];
     grp.visible = false;
   }

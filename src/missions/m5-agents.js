@@ -65,6 +65,9 @@ export class AgentMission extends Mission {
     super(G, def);
     this.fires = [];
     this.reported = false;
+    this.autoT = -1; // 모두 진압 후 자동 종료까지 남은 시간
+    this.hintOn = false;
+    this.hint = true; // 터치 힌트 버튼 표시용
     this.used = new Set();
     this._weakWarn = {};
   }
@@ -87,7 +90,7 @@ export class AgentMission extends Mission {
 
     for (const f of I.fires) {
       const rule = RULES[f.id];
-      const fire = G.fx.addFire(f.pos, { size: f.size, hp: f.hp, type: f.type, heat: 2.4 + f.size * 1.6, smoke: f.smoke, label: f.label, id: f.id, tint: f.tint, light: f.light });
+      const fire = G.fx.addFire(f.pos, { size: f.size, hp: f.hp, type: f.type, heat: 2.4 + f.size * 1.6, smoke: f.smoke, label: f.label, id: f.id, tint: f.tint, light: f.light, smokeC: f.smokeC, smokeA: f.smokeA });
       fire.minHp = 0;
       fire.onOut = () => {
         G.ui.toast(`${rule.name} 진압 — ${rule.cls}: ${rule.ok}`, 'good');
@@ -107,15 +110,8 @@ export class AgentMission extends Mission {
         G.ui.toast('소화약제를 모두 충전했습니다', 'good');
       },
     });
-    this.addInteract({
-      pos: I.exit, radius: 2.6, label: '실습 종료 · 대피 후 보고',
-      enabled: () => this.fires.every((f) => !f.alive) && !this.reported,
-      onUse: () => { this.reported = true; this.complete('report'); G.ui.banner('실습 종료'); setTimeout(() => this.finish(true), 1200); },
-    });
-
     this.addObj('pick', '소화약제 6종 확인 — 1~6 키로 모두 선택해 본다', '0/6')
-      .addObj('fires', '화재 6곳 진압 — 화재 종류에 맞는 약제 선택', '0/6')
-      .addObj('report', '출입구에서 실습 종료 보고');
+      .addObj('fires', '화재 6곳 진압 — 화재 종류에 맞는 약제 선택 (H: 힌트)', '0/6');
     this.setActive('pick');
     G.ui.banner('화재 종류에 맞는 약제를 고르세요', 2800);
     G.ui.toast(IS_TOUCH ? '아래 약제 칸을 눌러 선택한 뒤 오른쪽 분사 버튼으로 뿌리세요' : '1~6 키: 물 · 분말 · CO₂ · 포 · 팽창질석/모래 · K급 — 클릭으로 방사', 'info');
@@ -195,17 +191,50 @@ export class AgentMission extends Mission {
   updateCount() {
     const out = this.fires.filter((f) => !f.alive).length;
     this.setCount('fires', `${out}/${this.fires.length}`);
-    if (out === this.fires.length) { this.complete('fires'); this.G.ui.banner('화재 6곳 진압 완료'); }
+    if (out === this.fires.length && this.autoT < 0) {
+      this.complete('fires');
+      this.G.ui.banner('모두 진압!', 2600);
+      this.G.ui.setHint(null);
+      this.autoT = 2.5; // 별도 종료 버튼 없이 약 2.5초 뒤 자동으로 문제/결과로 넘어감
+    }
+  }
+
+  // ── 힌트: 가장 가까운 화재에 쓸 약제 / 쓰면 안 되는 약제
+  hintFor(f) {
+    const rule = RULES[f.id];
+    const nm = (id) => AGENTS.find((a) => a.id === id).name;
+    const use = Object.entries(rule.eff).sort((a, b) => b[1] - a[1]).map(([id]) => nm(id));
+    const no = [...Object.keys(rule.bad || {}).map((id) => `${nm(id)}(위험)`), ...Object.keys(rule.weak || {}).map((id) => `${nm(id)}(효과 없음)`)];
+    return `<b class="ht">💡 힌트 · ${rule.name} (${rule.cls})</b><div class="use">✔ 사용: ${use.join(' › ')}</div><div class="no">✖ 금지/부적합: ${no.length ? no.join(', ') : '없음'}</div><small>${rule.ok}</small>`;
+  }
+
+  nearestFire() {
+    const P = this.G.player;
+    let best = null, bd = 1e9;
+    for (const f of this.fires) if (f.alive) { const d = P.pos.distanceTo(f.pos); if (d < bd) { bd = d; best = f; } }
+    return best;
   }
 
   update(dt) {
     const G = this.G, P = G.player;
+    // H 키(또는 힌트 버튼): 힌트 패널 켜기/끄기 — 팝업이 열려 있는 동안은 UI가 알아서 숨김
+    if (G.input.pressed('KeyH')) { this.hintOn = !this.hintOn; if (!this.hintOn) G.ui.setHint(null); }
+    if (this.hintOn) {
+      const nf = this.nearestFire();
+      if (nf) { if (this._hintId !== nf.id) { this._hintId = nf.id; G.ui.setHint(this.hintFor(nf)); } } else { this._hintId = null; G.ui.setHint(null); }
+    } else this._hintId = null;
+    // 모두 진압되면 배너 → 약 2.5초 뒤 자동 종료
+    if (this.autoT >= 0) {
+      this.autoT -= dt;
+      if (this.autoT < 0 && !this.reported) { this.reported = true; this.finish(true); }
+    }
     // 약제 선택 진행도 / HUD
     if (P.agentSel) this.used.add(P.agentSel);
     if (!this.objs[0].done) {
       this.setCount('pick', `${this.used.size}/6`);
       if (this.used.size >= AGENTS.length) { this.complete('pick'); G.ui.toast('약제 6종을 모두 확인했습니다', 'good'); }
     }
+    if (this.pickEl) this.pickEl.style.display = G.ui.modal.classList.contains('hidden') ? '' : 'none'; // 팝업이 열리면 약제 바 숨김
     if (this.tiles) for (const t of this.tiles) {
       t.classList.toggle('on', t.dataset.id === P.agentSel);
       const amt = Math.ceil(P.agentAmt[t.dataset.id] ?? 100);
@@ -231,13 +260,14 @@ export class AgentMission extends Mission {
       let best = null, bd = 1e9;
       for (const f of this.fires) if (f.alive) { const d = P.pos.distanceTo(f.pos); if (d < bd) { bd = d; best = f; } }
       tgt = [best.pos.x, best.pos.y + 1.0, best.pos.z, RULES[best.id].name.replace(' 화재', '')];
-    } else if (!this.reported) tgt = [this.I.exit.x, 2.2, this.I.exit.z + 0.6, '출입구'];
+    }
     this.markerTarget = tgt ? { pos: new THREE.Vector3(tgt[0], tgt[1], tgt[2]), label: tgt[3] } : null;
     this.smokeFx = 0;
   }
 
   teardown() {
     const G = this.G;
+    G.ui.setHint(null);
     this.pickEl && this.pickEl.remove();
     G.fx.onAgentHit = null;
     G.shake = 0;

@@ -86,7 +86,12 @@ export class ParticleSystem {
       if (this.drag[i] > 0) { const k = Math.exp(-this.drag[i] * dt); vel[i3] *= k; vel[i3 + 1] *= k; vel[i3 + 2] *= k; }
       vel[i3 + 1] += this.grav[i] * dt;
       pos[i3] += vel[i3] * dt; pos[i3 + 1] += vel[i3 + 1] * dt; pos[i3 + 2] += vel[i3 + 2] * dt;
-      if (this.onStep && this.onStep(i, pos, vel, i3)) { life[i] = 0; this.aAlpha[i] = 0; continue; }
+      if (this.onStep) {
+        // 입자별 좌표(q)를 전달 — 예전엔 pos 배열 전체를 넘겨 모든 입자가 0번 입자 좌표로 판정되었음
+        const q = this._q || (this._q = new Float32Array(3));
+        q[0] = pos[i3]; q[1] = pos[i3 + 1]; q[2] = pos[i3 + 2];
+        if (this.onStep(i, q, vel, i3)) { life[i] = 0; this.aAlpha[i] = 0; continue; }
+      }
       this.aSize[i] = lerp(this.s0[i], this.s1[i], t);
       const fadeIn = Math.min(1, t * 8);
       this.aAlpha[i] = lerp(this.a0[i], this.a1[i], t) * fadeIn;
@@ -121,6 +126,8 @@ export class Fire {
     this.thermal = true;
     this.id = o.id || '';
     this.tint = o.tint || null;
+    this.smokeC = o.smokeC || null; // [시작색, 끝색]
+    this.smokeA = o.smokeA ?? 0.42; // 연기 농도
     this.light = o.light || '#ff7a2a';
   }
 
@@ -165,7 +172,7 @@ export class Fire {
         x: this.pos.x + Math.cos(a) * r, y: this.pos.y + rand(0, 0.25), z: this.pos.z + Math.sin(a) * r,
         vx: rand(-0.35, 0.35), vy: rand(1.2, 2.6) * (0.6 + 0.5 * I), vz: rand(-0.35, 0.35),
         life: rand(0.55, 1.05) * (0.6 + 0.5 * I), s0: rand(0.7, 1.15) * sz * (0.6 + 0.5 * I), s1: rand(0.15, 0.4) * sz,
-        a0: 0.5, a1: 0, c0: this.tint ? this.tint[0] : [1.0, 0.62, 0.18], c1: this.tint ? this.tint[1] : [0.9, 0.16, 0.03], drag: 0.4,
+        a0: 0.34, a1: 0, c0: this.tint ? this.tint[0] : [1.0, 0.62, 0.18], c1: this.tint ? this.tint[1] : [0.9, 0.16, 0.03], drag: 0.4,
       });
     }
     // 연기
@@ -175,8 +182,8 @@ export class Fire {
       s.emit({
         x: this.pos.x + rand(-0.4, 0.4) * sz, y: this.pos.y + rand(0.8, 1.6) * sz, z: this.pos.z + rand(-0.4, 0.4) * sz,
         vx: rand(-0.3, 0.5) + this.fx.wind.x, vy: rand(1.3, 2.4), vz: rand(-0.3, 0.3) + this.fx.wind.z,
-        life: rand(3.2, 5.5), s0: rand(0.9, 1.4) * sz, s1: rand(3.2, 5.4) * sz, a0: 0.42, a1: 0,
-        c0: [0.1, 0.1, 0.11], c1: [0.32, 0.31, 0.3], drag: 0.15,
+        life: rand(3.2, 5.5), s0: rand(0.9, 1.4) * sz, s1: rand(3.2, 5.4) * sz, a0: this.smokeA, a1: 0,
+        c0: this.smokeC ? this.smokeC[0] : [0.1, 0.1, 0.11], c1: this.smokeC ? this.smokeC[1] : [0.32, 0.31, 0.3], drag: 0.15,
       });
     }
     // 불꽃 튀김

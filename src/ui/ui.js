@@ -1,6 +1,8 @@
 // HUD · 모달 · 퀴즈 · 결과 화면 (DOM)
 import { RANKS, LEVEL_EXP } from '../data/progress.js';
 import { fmtTime, shuffle } from '../core/util.js';
+import { IS_TOUCH } from '../core/device.js';
+import { APP_VERSION } from '../core/version.js';
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const $ = (id) => document.getElementById(id);
@@ -23,10 +25,12 @@ export class UI {
           <div class="vital" id="survRow"><label>요구조자</label><div class="bar surv"><i id="survBar"></i></div><span id="survTxt"></span></div>
         </div>
         <div class="card" id="mission">
-          <div class="mhead"><span id="mTitle">-</span><b id="mTimer">00:00</b></div>
+          <div class="mhead"><b id="mTimer">00:00</b></div>
           <ul id="objList"></ul>
           <div id="passBox" class="hidden"></div>
+          <div id="notes"></div>
         </div>
+        <div class="card hidden" id="hint"></div>
         <div id="tools">
           <div class="slot" id="slotHose"><kbd>1</kbd><span>관창</span><small id="modeTxt">직사</small></div>
           <div class="slot" id="slotExt"><kbd>2</kbd><span>소화기</span><small id="pinTxt">안전핀</small></div>
@@ -36,7 +40,6 @@ export class UI {
         <div id="cross"><i></i></div>
         <div id="prompt" class="hidden"><div class="pk">E</div><div class="pt" id="promptTxt"></div><div class="pbar"><i id="promptBar"></i></div></div>
         <div id="marker" class="hidden"><div class="mk"></div><div class="ml" id="markerTxt"></div></div>
-        <div id="toasts"></div>
         <div id="banner" class="hidden"></div>
       </div>
       <div id="modal" class="hidden"></div>
@@ -45,20 +48,32 @@ export class UI {
     this.modal = $('modal');
     this.fadeEl = $('fade');
     this.last = {};
+    addEventListener('resize', () => this.fit());
+    addEventListener('orientationchange', () => setTimeout(() => this.fit(), 250));
   }
 
   // ───────── HUD ─────────
   show(v) { this.hud.classList.toggle('hidden', !v); }
 
+  // 게임 중 안내문구: 화면 가운데가 아니라 우측 상단 패널의 목표 아래에 쌓음 (PC 3개 · 모바일 1개, 몇 초 뒤 사라짐)
   toast(msg, kind = 'info') {
+    const box = $('notes');
+    if (!box) return;
     const el = document.createElement('div');
     el.className = 'toast ' + kind;
     el.textContent = msg;
-    const box = $('toasts');
     box.append(el);
-    while (box.children.length > 4) box.firstChild.remove();
-    setTimeout(() => el.classList.add('out'), 3200);
-    setTimeout(() => el.remove(), 3700);
+    const max = IS_TOUCH ? 1 : 3;
+    while (box.children.length > max) box.firstChild.remove();
+    setTimeout(() => el.classList.add('out'), 4200);
+    setTimeout(() => el.remove(), 4800);
+  }
+
+  // 힌트 패널(팝업이 열려 있는 동안에는 숨김)
+  setHint(html) {
+    this._hint = html || null;
+    const h = $('hint');
+    if (h) h.innerHTML = html || '';
   }
 
   banner(text, ms = 2600) {
@@ -88,8 +103,7 @@ export class UI {
     if (this.last.marker !== t) { $('markerTxt').textContent = t; this.last.marker = t; }
   }
 
-  setObjectives(title, list) {
-    $('mTitle').textContent = title || '';
+  setObjectives(title, list) { // 임무 제목은 HUD에 표시하지 않음(맨 윗줄은 경과시간만)
     this._objs = list;
     this.renderObjectives();
   }
@@ -127,6 +141,7 @@ export class UI {
     $('survRow').classList.toggle('hidden', d.survivor == null);
     if (d.survivor != null) { w('survBar', d.survivor); set('survTxt', `${Math.ceil(d.survivor)}%`); $('survBar').parentElement.classList.toggle('low', d.survivor < 35); }
     set('mTimer', fmtTime(d.time));
+    $('hint').classList.toggle('hidden', !this._hint || !this.modal.classList.contains('hidden'));
     $('slotHose').classList.toggle('on', tool === 'hose');
     $('slotHose').classList.toggle('off', !P.allowed.hose || !P.hoseReady);
     $('slotExt').classList.toggle('on', tool === 'ext');
@@ -169,12 +184,44 @@ export class UI {
   // ───────── 모달 공통 ─────────
   open(html, cls = '') {
     this.modal.className = cls;
-    this.modal.innerHTML = `<div class="sheet">${html}</div>`;
+    this.modal.innerHTML = `<div class="sheet"><div class="sin">${html}</div></div>`;
     this.G.input.active = false;
     this.G.input.unlock();
+    this.fit();
   }
 
   close() { this.modal.className = 'hidden'; this.modal.innerHTML = ''; }
+
+  // 팝업이 스크롤 없이 한 화면에 들어오게: 높이를 재서 화면보다 크면 CSS zoom으로 축소(최소 50%)
+  // 화면이 바뀔 때(열릴 때·퀴즈 해설 표시·창 크기 변경)마다 다시 호출
+  fit() {
+    const sheet = this.modal.querySelector('.sheet');
+    if (!sheet || this.modal.classList.contains('hidden')) return;
+    const sin = sheet.firstElementChild;
+    const px = (v) => parseFloat(v) || 0;
+    const useZoom = typeof CSS !== 'undefined' && CSS.supports && CSS.supports('zoom', '1');
+    const reset = () => { sin.style.zoom = ''; sin.style.transform = ''; sin.style.transformOrigin = ''; sheet.style.height = ''; };
+    reset();
+    const mc = getComputedStyle(this.modal), sc = getComputedStyle(sheet);
+    const avail = this.modal.clientHeight - px(mc.paddingTop) - px(mc.paddingBottom) - px(sc.paddingTop) - px(sc.paddingBottom) - px(sc.borderTopWidth) - px(sc.borderBottomWidth);
+    const natural = sin.scrollHeight;
+    if (!(avail > 0) || natural <= avail + 1) return;
+    let z = Math.max(0.5, avail / natural);
+    const apply = (k) => {
+      if (useZoom) sin.style.zoom = String(k);
+      else { sin.style.transformOrigin = 'top center'; sin.style.transform = `scale(${k})`; sheet.style.height = Math.ceil(natural * k + (sheet.offsetHeight - sin.offsetHeight)) + 'px'; }
+    };
+    apply(z);
+    // zoom은 가로 폭을 줄이지 않아 글이 더 넓게 퍼지므로, 실제 높이를 다시 재어 한두 번 보정
+    if (useZoom) {
+      for (let i = 0; i < 3; i++) {
+        const h = sin.getBoundingClientRect().height;
+        if (h > avail + 1 && z > 0.5) { z = Math.max(0.5, z * (avail / h)); apply(z); }
+        else if (h < avail * 0.92 && z < 1) { z = Math.min(1, z * (avail / h) * 0.98); apply(z); }
+        else break;
+      }
+    }
+  }
 
   ask(html, buttons, cls = '') {
     return new Promise((resolve) => {
@@ -205,6 +252,7 @@ export class UI {
             <div><kbd>1</kbd> 관창 · <kbd>2</kbd> 소화기 · <kbd>T</kbd> 열화상 · <kbd>M</kbd> 소리 · <kbd>Esc</kbd> 일시정지</div>
           </div>
         </div>`, 'title-bg');
+      this.modal.insertAdjacentHTML('beforeend', `<div class="ver">${APP_VERSION}</div>`);
       const nm = () => ($('nameIn').value.trim() || '김소방').slice(0, 10);
       $('bNew').onclick = () => { this.G.sfx.init(); resolve({ mode: 'new', name: nm() }); };
       const c = $('bCont');
@@ -260,6 +308,7 @@ export class UI {
           ok ? this.G.sfx.ok() : this.G.sfx.bad();
           $('qfb').innerHTML = `<div class="fb ${ok ? 'good' : 'bad'}"><b>${ok ? '정답입니다!' : '아쉽습니다.'}</b> ${esc(it.explain)}</div><div class="btns"><button class="btn primary" id="qNext">${i === list.length - 1 ? '결과 보기' : '다음 문제'}</button></div>`;
           $('qNext').onclick = () => resolve(ok);
+          this.fit();
         }));
         const key = (e) => { const n = parseInt(e.key, 10); if (n >= 1 && n <= opts.length) { const b = this.modal.querySelectorAll('.opt')[n - 1]; if (b && !b.disabled) b.click(); removeEventListener('keydown', key); } };
         addEventListener('keydown', key);

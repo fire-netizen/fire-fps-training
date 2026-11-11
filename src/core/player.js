@@ -4,48 +4,86 @@ import { Human } from '../character/human.js';
 import { clamp, damp, dampAngle, wrapAngle } from './util.js';
 import { AGENTS } from '../data/agents.js';
 
+export const DEFAULT_PITCH = 0.40; // 지면 기준 약 23° 아래로 내려다봄
+
 export class CameraRig {
   constructor(engine, world) {
     this.engine = engine;
     this.world = world;
     this.yaw = 0;
-    this.pitch = 0.25;
+    this.pitch = DEFAULT_PITCH;
     this.dist = 4.4;
     this.fov = 58;
     this.pos = new THREE.Vector3();
     this.dir = new THREE.Vector3(0, 0, 1);
     this.pivot = new THREE.Vector3();
+    this.follow = new THREE.Vector3(); // 관성으로 따라오는 추적점
+    this.curDist = this.dist;
+    this.shoulder = 0.45;
+    this.pitchBack = null; // 분사 종료 후 되돌아갈 시점
     this._d = new THREE.Vector3();
+    this._want = new THREE.Vector3();
+    this._tc = new THREE.Vector3();
+    this._snap = true;
   }
 
-  update(dt, player, input, { aiming = false, free = true } = {}) {
-    if (free && input) {
+  snap() { this._snap = true; }
+
+  // opts.spray: 소화약제 분사 중(어깨 너머 시점 · 조준은 스틱) / opts.aimIn: {yaw, pitch} 변화량(스틱)
+  update(dt, player, input, { aiming = false, free = true, spray = false, aimYaw = 0, aimPitch = 0 } = {}) {
+    let dragged = false;
+    if (free && input && (input.dx || input.dy)) {
       this.yaw -= input.dx * 0.0026;
-      this.pitch = clamp(this.pitch + input.dy * 0.0021, -0.75, 1.05);
+      this.pitch = clamp(this.pitch + input.dy * 0.0021, -0.75, 1.05); // 놓아도 원래 각도로 되돌아가지 않음
+      dragged = true;
+    }
+    if (spray && free) { // 이동 스틱으로 조준(좌우·상하)
+      this.yaw -= aimYaw * dt;
+      this.pitch = clamp(this.pitch + aimPitch * dt, -0.2, 0.95);
+      this.pitchBack = this.pitchBack ?? null;
+    }
+    if (dragged) this.pitchBack = null;
+    // 분사를 멈추면 분사 전 시점으로 부드럽게 복귀
+    if (!spray && this.pitchBack != null) {
+      this.pitch = damp(this.pitch, this.pitchBack, 5, dt);
+      if (Math.abs(this.pitch - this.pitchBack) < 0.01) this.pitchBack = null;
     }
     const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
     this.dir.set(Math.sin(this.yaw) * cp, -sp, Math.cos(this.yaw) * cp);
     const right = this._d.set(-Math.cos(this.yaw), 0, Math.sin(this.yaw));
+
+    // 추적점: 앞뒤·좌우는 늦게, 높이는 더 천천히
+    const tx = player.pos.x, ty = player.pos.y, tz = player.pos.z;
+    if (this._snap || dt === 0) { this.follow.set(tx, ty, tz); this._snap = false; }
+    else {
+      this.follow.x = damp(this.follow.x, tx, 7, dt);
+      this.follow.z = damp(this.follow.z, tz, 7, dt);
+      this.follow.y = damp(this.follow.y, ty, 3, dt);
+    }
     const crouchDrop = 0.55 * player.human.cr;
-    this.pivot.set(player.pos.x, player.pos.y + 1.55 - crouchDrop, player.pos.z);
-    const dist = aiming ? 3.3 : this.dist;
-    const shoulder = aiming ? 0.62 : 0.45;
-    const desired = new THREE.Vector3().copy(this.pivot).addScaledVector(this.dir, -dist).addScaledVector(right, shoulder);
-    desired.y += 0.15;
-    // 벽 충돌: 피벗에서 목표 위치로 레이캐스트
-    const toCam = desired.clone().sub(this.pivot);
+    this.pivot.set(this.follow.x, this.follow.y + 1.55 - crouchDrop, this.follow.z);
+    // 분사 중에도 거리는 평상시와 같게(높이가 갑자기 변하지 않도록), 어깨 위치만 살짝 이동
+    this.shoulder = damp(this.shoulder, spray ? 0.6 : 0.45, 8, dt);
+    const want = this._want.copy(this.pivot).addScaledVector(this.dir, -this.dist).addScaledVector(right, this.shoulder);
+    want.y += 0.15;
+    // 벽 충돌: 플레이어 '머리' 위치에서 카메라 쪽으로 레이캐스트해 벽 앞으로 당김
+    const head = this.pivot.clone(); head.x = player.pos.x; head.z = player.pos.z; // 머리는 실제 플레이어 위 (추적점 지연과 무관)
+    head.y = this.pivot.y;
+    const toCam = this._tc.copy(want).sub(head);
     const len = toCam.length();
     toCam.normalize();
-    const hit = this.world.raycast(this.pivot, toCam, len);
-    const use = Math.max(0.7, Math.min(len, hit.dist - 0.3));
-    desired.copy(this.pivot).addScaledVector(toCam, use);
+    const hit = this.world.raycast(head, toCam, len);
+    const allowed = Math.max(0.6, Math.min(len, hit.dist - 0.3));
+    // 벽에 닿으면 즉시 당기고, 공간이 생기면 천천히 원위치
+    this.curDist = allowed < this.curDist ? allowed : damp(this.curDist, allowed, 6, dt);
+    if (dt === 0) this.curDist = allowed;
+    const desired = head.addScaledVector(toCam, this.curDist);
     desired.y = Math.max(0.35, desired.y);
-    this.pos.lerp(desired, 1 - Math.exp(-18 * dt));
-    if (dt === 0) this.pos.copy(desired);
+    this.pos.copy(desired);
     const cam = this.engine.camera;
     cam.position.copy(this.pos);
     cam.lookAt(this.pos.x + this.dir.x, this.pos.y + this.dir.y, this.pos.z + this.dir.z);
-    const tf = aiming ? 50 : 58;
+    const tf = aiming ? 52 : 58;
     this.fov = damp(this.fov, tf, 10, dt);
     if (Math.abs(cam.fov - this.fov) > 0.05) { cam.fov = this.fov; cam.updateProjectionMatrix(); }
   }
@@ -99,7 +137,9 @@ export class Player {
     this.heading = yaw;
     this.root.rotation.y = yaw;
     this.G.cam.yaw = yaw;
-    this.G.cam.pitch = 0.28;
+    this.G.cam.pitch = DEFAULT_PITCH;
+    this.G.cam.pitchBack = null;
+    this.G.cam.snap();
     this.speed = 0;
   }
 
@@ -181,6 +221,14 @@ export class Player {
     if (inp.pressed('KeyT') && this.allowed.tic) { this.tic = !this.tic; G.sfx.click(); }
     if (inp.pressed('KeyQ') && this.tool === 'hose') { this.mode = this.mode === 'jet' ? 'fog' : 'jet'; G.ui.toast(this.mode === 'jet' ? '직사 방수 (원거리·강한 압력)' : '분무 방수 (넓은 범위·복사열 차단)', 'info'); G.sfx.click(); }
 
+    // ── 소화약제 분사 중: 플레이어·카메라 고정, 이동 스틱(WASD)은 조준 전용
+    const agentAmt = this.tool === 'agent' && this.agentSel ? this.agentAmt[this.agentSel] ?? 0 : 0;
+    const sprayWant = this.tool === 'agent' && agentAmt > 0 && fireKey;
+    if (sprayWant && !this._sprayOn) { this._sprayOn = true; this.sprayT = 0; G.camRig.pitchBack = G.camRig.pitch; }
+    if (!sprayWant) { this._sprayOn = false; this.sprayT = 0; }
+    this.spray = sprayWant;
+    this.aimCmd = { yaw: 0, pitch: 0 };
+
     // ── 이동
     const ix = (inp.isDown('KeyD') ? 1 : 0) - (inp.isDown('KeyA') ? 1 : 0);
     const iz = (inp.isDown('KeyW') ? 1 : 0) - (inp.isDown('KeyS') ? 1 : 0);
@@ -194,8 +242,15 @@ export class Player {
     if (this.crouch) spd = 1.6;
     if (this.carry) spd = this.sprint ? 2.2 : 1.9;
     if (this.aiming) spd = Math.min(spd, 2.1);
+    if (sprayWant) {
+      const st0 = inp.stick;
+      const sx = st0.analog ? st0.x : ix, sy = st0.analog ? st0.y : -iz; // y: 위가 -
+      const curve = (v) => (Math.abs(v) < 0.12 ? 0 : Math.sign(v) * Math.pow(Math.min(1, Math.abs(v)), 1.7)); // 약한 입력은 천천히
+      this.aimCmd.yaw = curve(sx) * 1.7;
+      this.aimCmd.pitch = curve(sy) * 1.0;
+    }
     let moved = 0;
-    if (len > 0.01) {
+    if (len > 0.01 && !sprayWant) {
       mx /= len; mz /= len;
       const before = this._m.copy(this.pos);
       G.world.move(this.pos, this.radius, mx * spd * dt, mz * spd * dt);
@@ -203,6 +258,11 @@ export class Player {
       if (!this.aiming) this.heading = dampAngle(this.heading, Math.atan2(mx, mz), 14, dt);
     }
     if (this.aiming || this.tool === 'tic') this.heading = dampAngle(this.heading, yaw, 16, dt);
+    // 카메라가 어깨 뒤에 자리잡은 뒤(몸이 정면을 향함)에 분사 시작
+    if (sprayWant) {
+      this.sprayT += dt;
+      this.sprayReady = (this.sprayT > 0.22 && Math.abs(wrapAngle(this.heading - yaw)) < 0.16) || this.sprayT > 0.6;
+    } else this.sprayReady = false;
     // 호스 길이 제한
     if (this.tether) {
       const dx = this.pos.x - this.tether.pos.x, dz = this.pos.z - this.tether.pos.z, d = Math.hypot(dx, dz);
@@ -300,6 +360,7 @@ export class Player {
     } else if (this.tool === 'agent' && fireKey) {
       const id = this.agentSel, amt = id ? this.agentAmt[id] ?? 0 : 0;
       if (id && amt > 0) {
+        if (!this.sprayReady) { this.lastAimYaw = G.camRig.yaw; this.audio = { water: 0, powder: 0 }; return; }
         this.firing = true;
         this.computeAim();
         const m = this.muzzle(this._m);
