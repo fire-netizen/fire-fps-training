@@ -50,7 +50,7 @@ export class ExteriorMission extends Mission {
     this.addHuman(cap, true);
     this.captain = cap;
     const cols = [['#c4524a', '#2d3a4f'], ['#5a8a6a', '#3c3a3a'], ['#d8b44a', '#2b3550'], ['#8a6fb0', '#3a4a5a']];
-    [[-9, -8.2], [-7.4, -8.6], [10, -8.3], [11.4, -8.7]].forEach(([dx, z], i) => {
+    [[-9, -5.4], [-7.4, -5.8], [10, -5.5], [11.4, -5.9]].forEach(([dx, z], i) => {
       const h = new Human({ shirt: cols[i][0], pants: cols[i][1], hair: ['#241a14', '#3a2a1e', '#15110e', '#4a3a2a'][i], skin: ['#d9a982', '#c99472', '#b98763', '#e0b690'][i], longHair: i % 2 === 1 });
       h.root.position.set(A.x + dx, 0, z);
       h.root.rotation.y = Math.PI;
@@ -80,13 +80,13 @@ export class ExteriorMission extends Mission {
       },
     });
     this.addInteract({
-      pos: this.pumpPos, radius: 3.4, label: '용수 보충 (소방차 탱크)', hold: 2.4,
-      enabled: () => P.hoseReady && P.stats.water < 90,
+      pos: this.pumpPos, radius: 3.4, label: '용수 보충 (소방차 탱크)', hold: 1.5,
+      enabled: () => P.hoseReady && P.stats.water < 98,
       onUse: () => this.refill('소방차 탱크에서 용수를 보충했습니다'),
     });
     this.addInteract({
-      pos: W.hydrantA, radius: 2.4, label: '용수 보충 (소화전 연결)', hold: 2.0,
-      enabled: () => P.hoseReady && P.stats.water < 90,
+      pos: W.hydrantA, radius: 2.4, label: '용수 보충 (소화전 연결)', hold: 1.2,
+      enabled: () => P.hoseReady && P.stats.water < 98,
       onUse: () => this.refill('소화전에서 용수를 보충했습니다'),
     });
     this.addInteract({
