@@ -59,7 +59,15 @@ export class Mission {
   // ── 리소스 등록(자동 정리)
   addInteract(o) { this.G.interactables.push(o); this.inter.push(o); return o; }
   addProp(o) { this.props.push(o); return o; }
-  addHuman(h) { this.humans.push(h); this.G.engine.scene.add(h.root); return h; }
+  // body=true: 서 있는 사람은 몸통 충돌을 줘서 통과하지 못하고 돌아가게 함(물·시선은 통과). 임무 종료 시 자동 제거
+  addHuman(h, body = false) {
+    this.humans.push(h); this.G.engine.scene.add(h.root);
+    if (body) {
+      const p = h.root.position;
+      (this.bodySolids || (this.bodySolids = [])).push(this.G.world.solid(p.x, 0.9, p.z, 0.7, 1.8, 0.7, 'person', { water: false, view: false }));
+    }
+    return h;
+  }
 
   finish(success, reason = '') {
     if (this.ended) return;
@@ -98,6 +106,7 @@ export class Mission {
     for (const i of this.inter) { const k = this.G.interactables.indexOf(i); if (k >= 0) this.G.interactables.splice(k, 1); }
     for (const p of this.props) { p.parent && p.parent.remove(p); p.traverse?.((o) => { o.geometry?.dispose?.(); }); }
     for (const h of this.humans) h.root.parent && h.root.parent.remove(h.root);
+    for (const sd of this.bodySolids || []) { const k = this.G.world.solids.indexOf(sd); if (k >= 0) this.G.world.solids.splice(k, 1); }
     this.teardown && this.teardown();
     this.G.player.tether = null;
     this.G.ui.setMarker(null);

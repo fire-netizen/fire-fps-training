@@ -79,7 +79,7 @@ export class GearMission extends Mission {
     b.setGear({ pants: true, boots: true, coat: true, hood: true, scba: true, helmet: true, gloves: true });
     b.root.position.set(T.x - 1, 0, T.z + 3.4);
     b.root.rotation.y = Math.PI;
-    this.addHuman(b);
+    this.addHuman(b, true);
     this.buddy = b;
     this.addInteract({
       pos: b.root.position.clone(), radius: 2.4, label: '동료와 상호 점검 (버디 체크)',

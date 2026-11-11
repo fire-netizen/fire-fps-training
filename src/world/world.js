@@ -239,7 +239,9 @@ export class World {
     const bar = makeBarrier(22);
     bar.position.set(L.siteA.x, 0.1, -9.8);
     g.add(bar);
-    for (const dx of [-14, 14]) { const c = makeCone(); c.position.set(L.siteA.x + dx, 0.1, -9.3); g.add(c); }
+    // 경계 테이프(난간)·안전콘: 통과하지 못하고 양 끝으로 돌아가야 함 (물·시선은 통과)
+    this.solid(L.siteA.x, 0.6, -9.8, 22, 1.2, 0.5, 'barrier', { water: false, view: false });
+    for (const dx of [-14, 14]) { const c = makeCone(); c.position.set(L.siteA.x + dx, 0.1, -9.3); g.add(c); this.solid(L.siteA.x + dx, 0.4, -9.3, 0.5, 0.8, 0.5, 'cone', { water: false, view: false }); }
   }
 
   buildStation() {

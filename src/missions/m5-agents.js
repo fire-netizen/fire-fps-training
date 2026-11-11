@@ -131,11 +131,8 @@ export class AgentMission extends Mission {
       const h = new Human({ skin: looks[i][0], hair: looks[i][1], scale: 0.98 + (i % 3) * 0.03 });
       h.setGear({ pants: true, boots: true, coat: true, helmet: i % 2 === 0, gloves: false });
       h.root.position.copy(I.p(x, 0, z));
-      this.addHuman(h);
+      this.addHuman(h, true);
       this.crowd.push(h);
-      // 몸통 충돌: 부딪히면 통과하지 않고 옆으로 미끄러져 돌아가게 함(물·시선은 통과)
-      const pp = h.root.position;
-      (this.crowdSolids || (this.crowdSolids = [])).push(this.G.world.solid(pp.x, 0.9, pp.z, 0.7, 1.8, 0.7, 'person', { water: false, view: false }));
     });
   }
 
@@ -302,7 +299,6 @@ export class AgentMission extends Mission {
   teardown() {
     const G = this.G;
     G.ui.setHint(null);
-    for (const sd of this.crowdSolids || []) { const k = G.world.solids.indexOf(sd); if (k >= 0) G.world.solids.splice(k, 1); }
     this.pickEl && this.pickEl.remove();
     G.fx.onAgentHit = null;
     G.shake = 0;

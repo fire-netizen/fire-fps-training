@@ -47,14 +47,14 @@ export class ExteriorMission extends Mission {
     cap.setGear({ pants: true, boots: true, coat: true, hood: true, helmet: true, gloves: true });
     cap.root.position.set(truck.x - 1.5, 0, truck.z + 3.4);
     cap.root.rotation.y = Math.PI * 0.8;
-    this.addHuman(cap);
+    this.addHuman(cap, true);
     this.captain = cap;
     const cols = [['#c4524a', '#2d3a4f'], ['#5a8a6a', '#3c3a3a'], ['#d8b44a', '#2b3550'], ['#8a6fb0', '#3a4a5a']];
     [[-9, -8.2], [-7.4, -8.6], [10, -8.3], [11.4, -8.7]].forEach(([dx, z], i) => {
       const h = new Human({ shirt: cols[i][0], pants: cols[i][1], hair: ['#241a14', '#3a2a1e', '#15110e', '#4a3a2a'][i], skin: ['#d9a982', '#c99472', '#b98763', '#e0b690'][i], longHair: i % 2 === 1 });
       h.root.position.set(A.x + dx, 0, z);
       h.root.rotation.y = Math.PI;
-      this.addHuman(h);
+      this.addHuman(h, true);
     });
 
     // 붕괴·낙하물 위험구역 표시
