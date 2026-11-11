@@ -76,6 +76,21 @@ export class Sfx {
     s.connect(f); f.connect(g); g.connect(this.master); s.start(c.currentTime, Math.random() * 1.5, 0.07);
   }
 
+  // 박수 소리: dur초 동안 여러 사람이 치는 박수(짧은 잡음 버스트 다수)
+  applause(dur = 2.4, crowd = 5) {
+    if (!this.ctx || this.muted) return;
+    const c = this.ctx, t0 = c.currentTime, n = Math.floor(dur * crowd * 7);
+    for (let i = 0; i < n; i++) {
+      const at = t0 + Math.random() * dur;
+      const env = Math.min(1, (at - t0) / 0.3) * Math.min(1, (t0 + dur - at) / 0.8 + 0.2);
+      const s = c.createBufferSource(); s.buffer = this.noiseBuf;
+      const f = c.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400 + Math.random() * 2200; f.Q.value = 1.2;
+      const g = c.createGain(); g.gain.setValueAtTime(0.13 * env * (0.5 + Math.random() * 0.6), at);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.05);
+      s.connect(f); f.connect(g); g.connect(this.master); s.start(at, Math.random() * 1.5, 0.06);
+    }
+  }
+
   update(dt, st) {
     if (!this.ctx) return;
     this.t += dt;

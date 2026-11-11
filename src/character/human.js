@@ -361,6 +361,9 @@ export class Human {
     return (t.muzzle || t.g).getWorldPosition(out);
   }
 
+  // 박수: dur초 동안 두 손을 앞에서 맞부딪침
+  clap(dur = 2) { this.clapT = dur; }
+
   play(type = 'reach', dur = 0.9) { this.actType = type; this.actDur = dur; this.actT = dur; }
 
   // 요구조자: 누운 자세 / 어깨에 메어진 자세
@@ -395,6 +398,9 @@ export class Human {
     this.aimPitch = k(this.aimPitch, st.aimPitch ?? 0, 10);
     this.lieW = k(this.lieW, this.lying ? 1 : 0, 6);
 
+    this.clapT = Math.max(0, (this.clapT || 0) - dt);
+    this.clapW = k(this.clapW || 0, this.clapT > 0 ? 1 : 0, 12);
+    const clapBeat = Math.sin(this.t * 17);
     let act = 0;
     if (this.actT > 0) {
       this.actT -= dt;
@@ -468,6 +474,10 @@ export class Human {
         if (name === 'R' || this.actType === 'pickup') {
           sx = lerp(sx, hold, act); ex = lerp(ex, -0.35, act); sz = lerp(sz, s * 0.05, act);
         }
+      }
+      // 박수: 팔을 앞으로 접고 손이 번갈아 맞닿음
+      if (this.clapW > 0.01) {
+        sx = lerp(sx, -1.05, this.clapW); ex = lerp(ex, -1.1 + 0.15 * clapBeat, this.clapW); sz = lerp(sz, s * (0.22 + 0.2 * clapBeat), this.clapW);
       }
       // 누운 자세: 팔을 몸 옆에 느슨하게
       sx = lerp(sx, 0.1, this.lieW); sz = lerp(sz, s * 0.18, this.lieW); ex = lerp(ex, -0.25, this.lieW);

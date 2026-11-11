@@ -5,6 +5,7 @@ import { QUIZ } from '../data/quizzes.js';
 import { AGENTS } from '../data/agents.js';
 import { bindAgentTiles } from '../ui/touch.js';
 import { IS_TOUCH } from '../core/device.js';
+import { Human } from '../character/human.js';
 
 // eff: 약제별 효과 계수(1=최적). weak: 효과 낮음(불이 줄었다 되살아남). bad: 위험 반응.
 const RULES = {
@@ -59,6 +60,7 @@ const RULES = {
 };
 
 const BASE_DMG = 0.16;
+const dampAngleSimple = (a, b, k, dt) => { let d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI; return a + d * (1 - Math.exp(-k * dt)); };
 
 export class AgentMission extends Mission {
   constructor(G, def) {
@@ -87,6 +89,7 @@ export class AgentMission extends Mission {
     P.equip(null);
     P.teleport(I.spawn, 0);
     this.buildPicker();
+    this.buildSpectators();
 
     for (const f of I.fires) {
       const rule = RULES[f.id];
@@ -95,6 +98,7 @@ export class AgentMission extends Mission {
       fire.onOut = () => {
         G.ui.toast(`${rule.name} 진압 — ${rule.cls}: ${rule.ok}`, 'good');
         G.sfx.ok();
+        this.cheer(1.4, 3);
         this.updateCount();
       };
       this.fires.push(fire);
@@ -115,6 +119,29 @@ export class AgentMission extends Mission {
     this.setActive('pick');
     G.ui.banner('화재 종류에 맞는 약제를 고르세요', 2800);
     G.ui.toast(IS_TOUCH ? '아래 약제 칸을 눌러 선택한 뒤 오른쪽 분사 버튼으로 뿌리세요' : '1~6 키: 물 · 분말 · CO₂ · 포 · 팽창질석/모래 · K급 — 클릭으로 방사', 'info');
+  }
+
+  // 화재 주변에서 지켜보는 동료 대원들 — 진압하면 박수
+  buildSpectators() {
+    const I = this.I;
+    this.crowd = [];
+    const looks = [['#c99472', '#1b1511'], ['#b98763', '#2a1d14'], ['#d6a785', '#3a2a1a'], ['#a67453', '#111'], ['#c99472', '#4a3320'], ['#b98763', '#1b1511']];
+    const spots = [[-9.0, 9.6], [-9.0, 12.2], [9.0, 9.6], [9.0, 12.2], [-3.0, 9.0], [3.0, 9.0]];
+    spots.forEach(([x, z], i) => {
+      const h = new Human({ skin: looks[i][0], hair: looks[i][1], scale: 0.98 + (i % 3) * 0.03 });
+      h.setGear({ pants: true, boots: true, coat: true, helmet: i % 2 === 0, gloves: false });
+      h.root.position.copy(I.p(x, 0, z));
+      this.addHuman(h);
+      this.crowd.push(h);
+      // 몸통 충돌: 부딪히면 통과하지 않고 옆으로 미끄러져 돌아가게 함(물·시선은 통과)
+      const pp = h.root.position;
+      (this.crowdSolids || (this.crowdSolids = [])).push(this.G.world.solid(pp.x, 0.9, pp.z, 0.7, 1.8, 0.7, 'person', { water: false, view: false }));
+    });
+  }
+
+  cheer(sec, loudness) {
+    for (const h of this.crowd || []) h.clap(sec * (0.85 + Math.random() * 0.3));
+    this.G.sfx.applause(sec, loudness);
   }
 
   buildPicker() {
@@ -195,6 +222,7 @@ export class AgentMission extends Mission {
       this.complete('fires');
       this.G.ui.banner('모두 진압!', 2600);
       this.G.ui.setHint(null);
+      this.cheer(2.6, 6);
       this.autoT = 2.5; // 별도 종료 버튼 없이 약 2.5초 뒤 자동으로 문제/결과로 넘어감
     }
   }
@@ -217,6 +245,12 @@ export class AgentMission extends Mission {
 
   update(dt) {
     const G = this.G, P = G.player;
+    // 구경하는 대원들은 플레이어 쪽을 바라봄
+    for (const h of this.crowd || []) {
+      const dx = P.pos.x - h.root.position.x, dz = P.pos.z - h.root.position.z;
+      h.root.rotation.y = dampAngleSimple(h.root.rotation.y, Math.atan2(dx, dz), 4, dt);
+      h.update(dt, { speed: 0 });
+    }
     // H 키(또는 힌트 버튼): 힌트 패널 켜기/끄기 — 팝업이 열려 있는 동안은 UI가 알아서 숨김
     if (G.input.pressed('KeyH')) { this.hintOn = !this.hintOn; if (!this.hintOn) G.ui.setHint(null); }
     if (this.hintOn) {
@@ -268,6 +302,7 @@ export class AgentMission extends Mission {
   teardown() {
     const G = this.G;
     G.ui.setHint(null);
+    for (const sd of this.crowdSolids || []) { const k = G.world.solids.indexOf(sd); if (k >= 0) G.world.solids.splice(k, 1); }
     this.pickEl && this.pickEl.remove();
     G.fx.onAgentHit = null;
     G.shake = 0;
