@@ -14,6 +14,8 @@ export class Climb {
     this.x0 = o.A.x; this.dx = 0;
     this.onTop = o.onTop; this.onBottom = o.onBottom; this.onTick = o.onTick;
     this.label = o.label || '';
+    this.type = o.type || 'ladder'; // ladder | rope | rappel
+    this.camYaw = o.camYaw || 0; this.camDist = o.camDist || 4.2;
     this.len = this.A.distanceTo(this.B);
     this.done = false;
     this._moving = 0;
@@ -25,7 +27,7 @@ export class Climb {
     P.crouch = false; P.firing = false; P.tool && P.equip(null);
     this.place();
     P.heading = this.face; P.root.rotation.y = this.face;
-    G.camRig.yaw = this.face; G.camRig.pitch = 0.18; G.camRig.dist = 4.2; G.camRig.pitchBack = null;
+    G.camRig.yaw = this.face + this.camYaw; G.camRig.pitch = this.type === 'ladder' ? 0.18 : 0.12; G.camRig.dist = this.camDist; G.camRig.pitchBack = null;
     G.ui.setPrompt(null);
     G.ui.toast(this.label || 'W/S 또는 조이스틱 위·아래로 이동', 'info');
   }
@@ -45,7 +47,7 @@ export class Climb {
     if (this.lat && Math.abs(h) > 0.2) this.dx = clamp(this.dx + h * 1.7 * dt, -this.lat, this.lat);
     this.place();
     P.heading = this.face; P.root.rotation.y = this.face;
-    P.human.update(dt, { speed: this._moving * 1.9, carry: !!P.carry });
+    P.human.update(dt, { speed: 0, carry: !!P.carry, climb: { type: this.type, v: k * this.speed } });
     P.updateHazards(dt);
     if (P.hurtFlash > 0) P.hurtFlash = Math.max(0, P.hurtFlash - dt * 1.6);
     this.onTick && this.onTick(this);
@@ -79,19 +81,32 @@ export function makeLadder(A, B, width = 0.56) {
     g.add(r);
   }
   g.position.copy(A);
-  // +y 를 dir 방향으로 회전
-  g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+  g.quaternion.copy(ladderQuat(dir));
   return g;
 }
 
-// 소방관이 어깨에 멘 사다리 (운반 중 표시)
+// 사다리 방향(dir)에 맞춘 회전: 폭 방향(x)을 항상 수평으로 유지
+export function ladderQuat(dir) {
+  const y = dir.clone().normalize();
+  const h = new THREE.Vector3(y.x, 0, y.z);
+  if (h.lengthSq() < 1e-6) h.set(0, 0, -1);
+  h.normalize();
+  const x = new THREE.Vector3(-h.z, 0, h.x).normalize();
+  const z = new THREE.Vector3().crossVectors(x, y).normalize();
+  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+}
+
+// 소방관이 오른쪽 어깨에 멘 사다리 (앞쪽 끝이 살짝 아래로 기울고, 무게중심이 어깨 위)
 export function makeCarriedLadder() {
   const g = makeLadder(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 2.6, 0));
   const w = new THREE.Group();
-  g.rotation.set(0, 0, 0);
-  g.quaternion.setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0)); // 눕힘: 몸 앞뒤 방향
-  g.position.set(0.2, 1.45, -1.3);
-  w.add(g);
+  g.quaternion.setFromEuler(new THREE.Euler(Math.PI / 2 + 0.07, 0, 0));
+  g.position.set(0, 0, -1.2);
+  const pivot = new THREE.Group();
+  pivot.add(g);
+  pivot.position.set(-0.27, 1.36, 0.12);
+  pivot.rotation.x = 0; pivot.rotation.z = 0.0;
+  w.add(pivot);
   return w;
 }
 

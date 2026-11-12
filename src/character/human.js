@@ -126,13 +126,34 @@ export class Human {
     this.sp = 0; this.cr = 0; this.aim = 0; this.carryW = 0; this.lieW = 0; this.aimPitch = 0;
     this.actT = 0; this.actDur = 1; this.actType = 'reach';
     this.look = 0;
+    this.clW = 0; this.clAmp = 0; this.clPh = 0; this.clType = 'ladder'; this.ladderCarry = false; this.ladW = 0; this.carryStyle = 'back';
     this.tool = null;
 
-    this._legs(); this._torso(); this._arms(); this._head(); this._gear(); this._tools();
+    this._legs(); this._torso(); this._arms(); this._head(); this._gear(); this._tools(); this._rig();
     this.setGear({});
   }
 
   // ───────────────────── 모델링 ─────────────────────
+  // 로프 구조용 하네스(허리벨트·다리고리) + 카라비너 + 8자 하강기
+  _rig() {
+    const strap = std('#e8a21a', 0.6), blk = std('#15171b', 0.7), steel = std('#cfd6dd', 0.3, 0.8), alu = std('#e0442a', 0.4, 0.5);
+    this.rigG = [];
+    const R = (o) => { this.rigG.push(o); o.visible = false; return o; };
+    const sp = this.spine;
+    R(add(sp, ring(0.238, 0.07), strap, 0, -0.07, 0, { s: [1.2, 1, 0.86] }));
+    R(add(sp, ring(0.241, 0.018), blk, 0, -0.035, 0, { s: [1.2, 1, 0.86] }));
+    for (const n of ['R', 'L']) R(add(this.legs[n].hip, ring(0.118, 0.07), strap, 0, -0.2, 0));
+    // 가슴 쪽 연결 고리 + 카라비너 + 하강기
+    const dev = new THREE.Group(); dev.position.set(0, -0.04, 0.235); sp.add(dev);
+    this.rigDev = dev; this.rigG.push(dev); dev.visible = false;
+    add(dev, new THREE.TorusGeometry(0.05, 0.011, 8, 18), steel, 0, 0.02, 0.0, { shadow: false });
+    add(dev, new THREE.TorusGeometry(0.052, 0.014, 8, 18), alu, 0, -0.06, 0.03, { rx: Math.PI / 2, shadow: false });
+    add(dev, new THREE.TorusGeometry(0.036, 0.014, 8, 16), alu, 0, -0.06, 0.1, { rx: Math.PI / 2, shadow: false });
+    // 로프(하강기에서 위로 · 아래로 이어지는 짧은 매듭 로프는 임무에서 그림)
+  }
+
+  setRig(v) { this.rigOn = !!v; for (const o of this.rigG) o.visible = !!v; }
+
   _legs() {
     this.legs = {};
     for (const [name, s] of [['R', -1], ['L', 1]]) {
@@ -382,11 +403,13 @@ export class Human {
   // 요구조자: 누운 자세 / 어깨에 메어진 자세
   setLying(v) { this.lying = v; }
 
+  // 업기(등에 업힘): 요구조자는 소방관 등 뒤에서 어깨를 감싸고, 다리는 소방관 허리 양옆으로 벌려 걸친다
   carriedBy(carrier) {
     this.carrier = carrier;
     carrier.spine.add(this.root);
-    this.root.position.set(1.28, 0.585, -0.06);
-    this.root.rotation.set(0, 0, Math.PI / 2);
+    const back = carrier.gear && carrier.gear.scba ? -0.66 : -0.4; // 공기호흡기가 있으면 더 뒤로
+    this.root.position.set(0, -0.93, back);
+    this.root.rotation.set(0, 0, 0);
     this.root.scale.setScalar(this.o.scale);
     this.lying = false; this.lieW = 0; this.carried = true;
   }
@@ -400,6 +423,71 @@ export class Human {
     this.lying = true;
   }
 
+  // 들것 위에 눕히기: 머리가 -x 쪽, 몸 중심이 center 에 오도록 (들것의 긴 방향 = x)
+  placeLying(scene, center, yaw = Math.PI / 2, y = 0.52) {
+    if (this.root.parent) this.root.parent.remove(this.root);
+    scene.add(this.root);
+    this.root.rotation.set(0, yaw, 0);
+    this.root.position.set(center.x + Math.sin(yaw) * 0.86, y, center.z + Math.cos(yaw) * 0.86);
+    this.carrier = null; this.carried = false; this.lying = true;
+  }
+
+  // ───────────────────── 사다리·로프 등반/하강 포즈 ─────────────────────
+  _climbPose(w) {
+    const bl = (r, x, y, z) => r.set(lerp(r.x, x, w), lerp(r.y, y, w), lerp(r.z, z, w));
+    const ph = this.clPh, amp = this.clAmp, type = this.clType;
+    const body = this.body;
+    const arm = (n, off) => ({ q: Math.sin(ph + off), a: this.arms[n] });
+    const ar = arm('R', 0), al = arm('L', Math.PI);
+    if (type === 'ladder') {
+      body.rotation.x = lerp(body.rotation.x, 0.3, w);
+      body.position.z = lerp(body.position.z, -0.12, w);
+      this.hips.position.y = lerp(this.hips.position.y, 0.95 - 0.02 * Math.abs(Math.sin(ph)) * amp, w);
+      bl(this.spine.rotation, 0.06, Math.sin(ph) * 0.1 * amp, 0);
+      bl(this.neck.rotation, -0.32, 0, 0); bl(this.head.rotation, -0.1, 0, 0);
+      for (const [o, sg] of [[ar, -1], [al, 1]]) {
+        bl(o.a.sh.rotation, -2.35 - 0.38 * o.q * amp, 0, sg * 0.16);
+        bl(o.a.el.rotation, -0.35 - 0.75 * (1 - o.q) * 0.5 * amp, 0, 0);
+        bl(o.a.wr.rotation, -0.2, 0, 0);
+      }
+      for (const [n, off] of [['R', Math.PI], ['L', 0]]) {
+        const lg = this.legs[n], q = Math.sin(ph + off), lift = Math.max(0, q) * amp;
+        bl(lg.hip.rotation, -0.12 - 1.0 * lift, 0, 0);
+        bl(lg.knee.rotation, 0.28 + 1.3 * lift, 0, 0);
+        bl(lg.ankle.rotation, 0.0 - 0.3 * lift, 0, 0);
+      }
+      return;
+    }
+    // 로프: 발을 벽에 대고 엉덩이를 뒤로 뺀 자세 (등반 / 하강 공통)
+    const rap = type === 'rappel';
+    const hx = rap ? -1.5 : -1.2, kx = rap ? 0.12 : 0.34;
+    const reach = 0.45 * Math.sin(-hx) + 0.42 * Math.sin(-(hx + kx)), drop = 0.45 * Math.cos(hx) + 0.42 * Math.cos(hx + kx);
+    body.rotation.x = lerp(body.rotation.x, 0, w);
+    body.position.z = lerp(body.position.z, -reach - 0.04, w);
+    body.position.y = lerp(body.position.y, drop - 0.96, w);
+    this.hips.position.y = lerp(this.hips.position.y, 0.96, w);
+    bl(this.spine.rotation, rap ? -0.32 : -0.28, Math.sin(ph * 0.5) * 0.05 * amp, 0);
+    bl(this.neck.rotation, rap ? 0.1 : -0.15, 0, 0); bl(this.head.rotation, rap ? 0.1 : 0.0, 0, 0);
+    for (const [n, off] of [['R', Math.PI], ['L', 0]]) {
+      const lg = this.legs[n], q = Math.sin(ph + off), st = (rap ? 0.16 : 0.34) * q * amp;
+      bl(lg.hip.rotation, hx - st, 0, (n === 'R' ? -1 : 1) * 0.1);
+      bl(lg.knee.rotation, kx + (rap ? 0.5 : 0.9) * Math.max(0, q) * amp, 0, 0);
+      bl(lg.ankle.rotation, rap ? -0.18 : -0.62 - 0.15 * Math.max(0, q) * amp, 0, 0);
+    }
+    if (rap) {
+      // 제동손(오른손: 엉덩이 뒤/아래로 로프 쥠) · 유도손(왼손: 가슴 앞 로프 위쪽)
+      const slide = Math.sin(ph) * 0.25 * amp;
+      bl(this.arms.R.sh.rotation, 0.5 + slide, 0, -0.12); bl(this.arms.R.el.rotation, -0.65, 0, 0);
+      bl(this.arms.L.sh.rotation, -1.05, 0, 0.12); bl(this.arms.L.el.rotation, -0.95 - 0.15 * slide, 0, 0);
+    } else {
+      // 한 손씩 번갈아 로프를 당겨 오름 (hand-over-hand)
+      for (const [o, sg] of [[ar, -1], [al, 1]]) {
+        bl(o.a.sh.rotation, -2.55 - 0.3 * o.q * amp, 0, sg * 0.1);
+        bl(o.a.el.rotation, -0.15 - 1.35 * Math.max(0, -o.q) * amp - 0.25, 0, 0);
+      }
+    }
+  }
+
   // ───────────────────── 애니메이션 ─────────────────────
   update(dt, st = {}) {
     this.t += dt;
@@ -410,6 +498,10 @@ export class Human {
     this.carryW = k(this.carryW, st.carry ? 1 : 0, 8);
     this.aimPitch = k(this.aimPitch, st.aimPitch ?? 0, 10);
     this.lieW = k(this.lieW, this.lying ? 1 : 0, 6);
+    this.ladW = k(this.ladW, this.ladderCarry ? 1 : 0, 8);
+    const cl = st.climb || null;
+    this.clW = k(this.clW, cl ? 1 : 0, 9);
+    if (cl) { this.clType = cl.type; this.clAmp = k(this.clAmp, clamp(Math.abs(cl.v) / 1.2, 0, 1), 8); this.clPh += cl.v * dt * (cl.type === 'ladder' ? 5.6 : 4.2); } else this.clAmp = k(this.clAmp, 0, 8);
 
     this.clapT = Math.max(0, (this.clapT || 0) - dt);
     this.clapW = k(this.clapW || 0, this.clapT > 0 ? 1 : 0, 12);
@@ -443,7 +535,7 @@ export class Human {
     const bob = walking ? Math.abs(Math.cos(ph)) * 0.05 * (0.4 + 0.6 * moving) : breathe * 0.4;
     this.hips.position.y = 0.96 - 0.31 * cr + bob - 0.02 * this.carryW;
     this.hips.position.z = -0.1 * cr;
-    this.spine.rotation.x = 0.04 + 0.16 * run + 0.5 * cr + 0.14 * this.carryW + 0.4 * act * (this.actType === 'reach' ? 1 : 0.3) + breathe;
+    this.spine.rotation.x = 0.04 + 0.16 * run + 0.06 * this.ladW + 0.5 * cr + 0.3 * this.carryW + 0.4 * act * (this.actType === 'reach' ? 1 : 0.3) + breathe;
     this.spine.rotation.y = Math.sin(ph) * 0.12 * A * 1.6 * (1 - this.aim);
     this.spine.rotation.z = Math.sin(ph * 1) * 0.015 * A * 3;
     this.neck.rotation.x = -(this.spine.rotation.x) * 0.55 - 0.05 + this.aimPitch * -0.25 * this.aim;
@@ -478,7 +570,8 @@ export class Human {
       }
       // 구조(어깨 메기)
       if (this.carryW > 0.01) {
-        const tgt = name === 'R' ? { sx: -0.75, sz: 0.1, ex: -1.25 } : { sx: -0.35, sz: -0.3, ex: -0.95 };
+        // 업은 자세: 두 팔을 뒤로 돌려 요구조자의 허벅지를 받친다
+        const tgt = { sx: 0.55, sz: s * 0.12, ex: -0.75 };
         sx = lerp(sx, tgt.sx, this.carryW); sz = lerp(sz, tgt.sz, this.carryW); ex = lerp(ex, tgt.ex, this.carryW);
       }
       // 상호작용 동작(손 뻗기/줍기)
@@ -488,26 +581,39 @@ export class Human {
           sx = lerp(sx, hold, act); ex = lerp(ex, -0.35, act); sz = lerp(sz, s * 0.05, act);
         }
       }
+      // 사다리 어깨에 메기(오른쪽 어깨): 오른팔로 살대를 감싸 잡고 왼손으로 받침
+      if (this.ladW > 0.01) {
+        const tgt = name === 'R' ? { sx: -1.0, sz: -0.4, ex: -1.75 } : { sx: -0.6, sz: 0.2, ex: -1.0 };
+        sx = lerp(sx, tgt.sx, this.ladW); sz = lerp(sz, tgt.sz, this.ladW); ex = lerp(ex, tgt.ex, this.ladW);
+      }
+      // 사다리 세우기: 두 팔을 머리 위로 올려 밀어 올림
+      if (act > 0 && this.actType === 'raise') {
+        sx = lerp(sx, -2.55, act); sz = lerp(sz, s * 0.16, act); ex = lerp(ex, -0.25, act);
+      }
       // 박수: 팔을 앞으로 접고 손이 번갈아 맞닿음
       if (this.clapW > 0.01) {
         sx = lerp(sx, -1.05, this.clapW); ex = lerp(ex, -1.1 + 0.15 * clapBeat, this.clapW); sz = lerp(sz, s * (0.22 + 0.2 * clapBeat), this.clapW);
       }
       // 누운 자세: 팔을 몸 옆에 느슨하게
       sx = lerp(sx, 0.1, this.lieW); sz = lerp(sz, s * 0.18, this.lieW); ex = lerp(ex, -0.25, this.lieW);
-      // 어깨에 메어진 상태(요구조자): 팔다리 축 늘어짐
-      if (this.carried) { sx = 0.0; sz = -Math.PI / 2 + 0.25; ex = -0.15; }
+      // 업힌 상태(요구조자): 두 팔로 소방관 목·어깨를 감싼다
+      if (this.carried) { sx = -1.45; sz = s * 0.28; ex = -0.55; }
       a.sh.rotation.set(sx, 0, sz);
       a.el.rotation.set(ex, 0, 0);
       a.wr.rotation.set(0.05, 0, 0);
     }
     if (this.carried) {
-      for (const name of ['R', 'L']) {
+      // 허벅지를 앞으로 들어 소방관 허리 옆을 감싸고, 무릎은 접혀 종아리가 아래로 늘어짐
+      for (const [name, sg] of [['R', -1], ['L', 1]]) {
         const lg = this.legs[name];
-        lg.hip.rotation.set(0, 0, -Math.PI / 2 + 0.15);
-        lg.knee.rotation.x = 0.35;
+        lg.hip.rotation.set(-1.2, 0, sg * 0.42);
+        lg.knee.rotation.x = 1.25;
+        lg.ankle.rotation.x = 0.3;
       }
-      this.neck.rotation.x = -0.35;
-      this.head.rotation.set(0.1, 0, 0.25);
+      this.spine.rotation.set(0.12, 0, 0);
+      this.neck.rotation.x = -0.1;
+      this.head.rotation.set(0.05, -0.25, 0.28);
+      this.hips.position.y = 0.96;
     }
 
     // ── 누운 자세
@@ -522,5 +628,8 @@ export class Human {
       this.legs.R.hip.rotation.z = 0; this.legs.L.hip.rotation.z = 0;
       this.head.rotation.z = 0;
     }
+
+    this.body.position.z = 0;
+    if (this.clW > 0.01) this._climbPose(this.clW);
   }
 }

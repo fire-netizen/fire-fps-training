@@ -6,10 +6,11 @@ import { Human } from '../character/human.js';
 import { HoseLine } from '../world/hose.js';
 import { QUIZ } from '../data/quizzes.js';
 import { rand, clamp } from '../core/util.js';
-import { Climb, makeLadder, makeCarriedLadder, makeRope } from '../core/climb.js';
+import { Climb, makeLadder, makeCarriedLadder, makeRope, ladderQuat } from '../core/climb.js';
 import { makeCar, makeFireTruck, std } from '../world/props.js';
 
 const FULL = { pants: true, boots: true, coat: true, hood: true, scba: true, helmet: true, gloves: true };
+const NOSCBA = { ...FULL, scba: false }; // 옥외 구조(연기 없음): 요구조자를 업을 수 있도록 공기호흡기 생략
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
 // 바닥에 깔리는 안내 원
@@ -24,6 +25,19 @@ function box(parent, w, h, d, x, y, z, mat) {
   m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true;
   parent.add(m);
   return m;
+}
+
+// 들것(긴 방향 x): 발쪽 바퀴 · 머리쪽 베개 · 양옆 손잡이
+function makeStretcher() {
+  const st = new THREE.Group();
+  box(st, 2.0, 0.08, 0.7, 0, 0.47, 0, std('#e8ebee', 0.6, 0.1));
+  box(st, 0.5, 0.06, 0.5, -0.72, 0.54, 0, std('#4a90c8', 0.8));
+  for (const dz of [-0.36, 0.36]) box(st, 2.1, 0.05, 0.05, 0, 0.52, dz, std('#9aa2aa', 0.4, 0.7));
+  for (const dx of [-0.85, 0.85]) for (const dz of [-0.28, 0.28]) {
+    box(st, 0.05, 0.36, 0.05, dx, 0.27, dz, std('#6c737a', 0.5, 0.6));
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.04, 12), std('#16181b', 0.9)); w.rotation.x = Math.PI / 2; w.position.set(dx, 0.07, dz); st.add(w);
+  }
+  return st;
 }
 
 // 공통 기반: 사다리·요구조자 인계 등 반복되는 동작
@@ -84,6 +98,7 @@ class FieldMission extends Mission {
     G.fx.clearAll();
     this.hose && this.hose.dispose();
     this.buzz = 0;
+    const H = G.player.human; H.setRig(false); H.ladderCarry = false;
   }
 
   // ── 사다리 공통 동작 ─────────────────────────────────────────
@@ -98,7 +113,7 @@ class FieldMission extends Mission {
       onUse: () => {
         this.hasLadder = true;
         this.carried = makeCarriedLadder();
-        P.root.add(this.carried);
+        P.root.add(this.carried); P.human.ladderCarry = true;
         G.ui.toast('사다리를 어깨에 멨습니다 — 표시된 설치 위치로 이동하세요', 'good'); G.sfx.ok();
         cfg.onTake && cfg.onTake();
       },
@@ -107,19 +122,44 @@ class FieldMission extends Mission {
       pos: cfg.A, radius: 2.6, label: '사다리 설치 (벽에 기대 세우기)', hold: 1.2,
       enabled: () => this.hasLadder,
       onUse: () => {
-        this.hasLadder = false; this.placed = true;
+        this.hasLadder = false; this.placed = true; this.raising = true;
         if (this.carried) { P.root.remove(this.carried); this.carried = null; }
+        P.human.ladderCarry = false;
         const dir = cfg.B.clone().sub(cfg.A).normalize();
-        const mesh = makeLadder(cfg.A, cfg.B.clone().addScaledVector(dir, cfg.extra ?? 0.9));
+        const top = cfg.B.clone().addScaledVector(dir, cfg.extra ?? 0.9);
+        const mesh = makeLadder(cfg.A, top);
         G.engine.scene.add(mesh); this.addProp(mesh); this.ladderMesh = mesh;
-        G.sfx.ok(); G.ui.toast('사다리를 약 70°로 설치했습니다. 하단을 잡고 확보하세요', 'good');
         this.hideRing(this.ringA);
-        cfg.onPlace && cfg.onPlace();
+        // 세우는 동작: 바닥에 눕힌 사다리의 윗부분을 들어 올려 벽에 기댄다 (1.8초)
+        const h = new THREE.Vector3(dir.x, 0, dir.z).normalize();
+        const q0 = ladderQuat(h.clone().negate()), q1 = ladderQuat(top.clone().sub(cfg.A));
+        const qa = new THREE.Quaternion(), Ltot = top.distanceTo(cfg.A);
+        const face = Math.atan2(h.x, h.z); // 벽을 향한 방향
+        P.heading = face; P.root.rotation.y = face; G.camRig.yaw = face + 0.5;
+        P.human.play('raise', 1.8);
+        P.pos.set(cfg.A.x - h.x * (Ltot - 0.3), 0, cfg.A.z - h.z * (Ltot - 0.3));
+        let t = 0;
+        mesh.quaternion.copy(q0);
+        this.anims = this.anims || [];
+        this.anims.push((dt) => {
+          t += dt;
+          const k = Math.min(1, t / 1.8), e = k * k * (3 - 2 * k);
+          qa.slerpQuaternions(q0, q1, e); mesh.quaternion.copy(qa);
+          // 소방관은 사다리 윗부분을 들고 벽 쪽으로 걸어 들어오며 세운다
+          const phi = (110 * Math.PI / 180) * e, off = Math.max(0.95, Ltot * Math.cos(phi) - 0.3);
+          P.pos.set(cfg.A.x - h.x * off, 0, cfg.A.z - h.z * off);
+          if (k < 1) return true;
+          this.raising = false;
+          G.sfx.ok(); G.ui.toast('사다리를 약 70°로 설치했습니다. 하단을 잡고 확보하세요', 'good');
+          cfg.onPlace && cfg.onPlace();
+          return false;
+        });
+        G.ui.toast('사다리를 세우는 중…', 'info');
       },
     });
     this.addInteract({
       pos: cfg.A, radius: 1.9, label: '사다리 오르기 (W / 조이스틱 위)',
-      enabled: () => this.placed && !P.control && P.pos.y < 1 && !P.carry && (!cfg.canClimb || cfg.canClimb()),
+      enabled: () => this.placed && !this.raising && !P.control && P.pos.y < 1 && !P.carry && (!cfg.canClimb || cfg.canClimb()),
       onUse: () => this.startClimb(0),
     });
     if (cfg.topStand) {
@@ -135,7 +175,7 @@ class FieldMission extends Mission {
     const G = this.G, cfg = this.lad;
     const c = new Climb(G, {
       A: cfg.A, B: cfg.B, s, speed: 1.45, face: cfg.face ?? Math.PI,
-      label: '🪜 W/S (조이스틱 위·아래)로 오르내림 · 3점 지지',
+      label: '🪜 W/S (조이스틱 위·아래)로 오르내림 · 3점 지지', type: 'ladder', camYaw: 0.35,
       onTop: cfg.onTop ? () => cfg.onTop() : undefined,
       onBottom: () => cfg.onBottom && cfg.onBottom(),
     });
@@ -155,9 +195,15 @@ class FieldMission extends Mission {
     return h;
   }
 
-  handover(P, surv, pos, yaw) {
-    P.drop(pos, yaw);
-    surv.setLying(true);
+  // 들것에 요구조자를 눕힘 (머리 -x 쪽, 들것 중심 기준)
+  handover(P, surv, pos) {
+    P.drop(pos, 0);
+    surv.placeLying(this.G.engine.scene, pos, Math.PI / 2, 0.48);
+  }
+
+  tick(dt) {
+    super.tick(dt);
+    if (this.anims && this.anims.length) this.anims = this.anims.filter((f) => f(dt) !== false);
   }
 
   tickHumans(dt) {
@@ -171,7 +217,7 @@ export class LadderRescueMission extends FieldMission {
 
   async setup() {
     const G = this.G, W = G.world, P = G.player, A = LAYOUT.siteA;
-    this.baseSetup();
+    this.baseSetup(NOSCBA);
     P.allowed = { hose: false, ext: false, tic: false };
     const front = A.z + A.d / 2; // 건물 정면 z
     const x0 = 64.5, by = 4.0;
@@ -204,10 +250,7 @@ export class LadderRescueMission extends FieldMission {
     this.amb = V(tr.x + 8.5, 0, -6.4);
     this.ambRing = this.ring(this.amb.x, this.amb.z, 1.8, '#4be08a');
     // 들것 (인계 지점)
-    const st = new THREE.Group();
-    box(st, 2.0, 0.12, 0.7, 0, 0.45, 0, std('#e8ebee', 0.6, 0.1));
-    for (const dx of [-0.8, 0.8]) for (const dz of [-0.25, 0.25]) box(st, 0.06, 0.4, 0.06, dx, 0.2, dz, std('#6c737a', 0.5, 0.6));
-    box(st, 0.5, 0.5, 0.05, 0, 1.3, 0.4, new THREE.MeshStandardMaterial({ color: '#17a35a', emissive: '#0d6b3b', emissiveIntensity: 0.6 }));
+    const st = makeStretcher();
     st.position.set(this.amb.x, 0, this.amb.z); G.engine.scene.add(st); this.addProp(st);
 
     this.setupLadderKit({
@@ -228,7 +271,7 @@ export class LadderRescueMission extends FieldMission {
     });
 
     this.addInteract({
-      pos: this.survPos, radius: 2.6, label: '요구조자 확보 (어깨에 메기)', hold: 1.6,
+      pos: this.survPos, radius: 2.6, label: '요구조자 확보 (업기)', hold: 1.6,
       enabled: () => P.pos.y > 3 && !P.carry && !this.rescued,
       onUse: () => {
         this.rescued = true;
@@ -241,8 +284,7 @@ export class LadderRescueMission extends FieldMission {
       pos: this.amb, radius: 3.2, label: '요구조자를 구급대에 인계', hold: 1.2,
       enabled: () => !!P.carry && P.pos.y < 1,
       onUse: () => {
-        this.handover(P, this.surv, V(this.amb.x, 0.5, this.amb.z), 0);
-        this.surv.root.position.set(this.amb.x, 0.55, this.amb.z);
+        this.handover(P, this.surv, V(this.amb.x, 0, this.amb.z));
         this.complete('hand'); G.ui.banner('구조 완료'); this.cheer(2.4);
         setTimeout(() => this.finish(true), 1800);
       },
@@ -283,7 +325,7 @@ export class RappelMission extends FieldMission {
 
   async setup() {
     const G = this.G, W = G.world, P = G.player, B = LAYOUT.siteB;
-    this.baseSetup();
+    this.baseSetup(NOSCBA);
     const front = B.z + B.d / 2; // -19
     const roofY = B.floors * B.floorH; // 15.5
     this.front = front; this.roofY = roofY;
@@ -308,14 +350,25 @@ export class RappelMission extends FieldMission {
 
     // 로프 (선발대가 옥상 앵커에 미리 고정)
     const ux = rx - 9; // 등반용 로프는 화염이 없는 왼쪽 열
-    const ropeTop = V(rx, roofY + 0.3, front + 0.55), ropeBot = V(rx, 0.1, front + 0.55);
+    const ropeTop = V(rx, roofY + 0.3, front + 0.76), ropeBot = V(rx, 0.1, front + 0.76);
     this.rope = makeRope(ropeBot, ropeTop);
     G.engine.scene.add(this.rope); this.addProp(this.rope);
-    this.ropeA = V(rx, 0, front + 0.8); this.ropeB = V(rx, roofY, front + 0.8);
+    this.ropeA = V(rx, 0, front + 0.26); this.ropeB = V(rx, roofY - 0.5, front + 0.26);
+    this.edgePt = V(rx, roofY + 0.05, front + 0.3);
+    this.rope.visible = true;
+    // 옥상 앵커에서 옥상 가장자리까지 로프 + 가장자리 보호대
+    const roofRope = makeRope(V(anchor.x, roofY + 0.8, anchor.z), this.edgePt);
+    G.engine.scene.add(roofRope); this.addProp(roofRope);
+    const guard = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.0, 10), std('#2f6fd0', 0.6)); guard.rotation.z = Math.PI / 2; guard.position.set(rx, roofY + 0.1, front + 0.18);
+    G.engine.scene.add(guard); this.addProp(guard);
+    // 하강 중 하강기를 지나는 로프(가변): 가장자리→하강기, 하강기→아래로 늘어진 꼬리
+    this.dr1 = makeRope(V(0, 0, 0), V(0, 1, 0)); this.dr2 = makeRope(V(0, 0, 0), V(0, 1, 0));
+    this.dr1.visible = this.dr2.visible = false;
+    G.engine.scene.add(this.dr1, this.dr2); this.addProp(this.dr1); this.addProp(this.dr2);
     this.upX = ux;
-    const upRope = makeRope(V(ux, 0.1, front + 0.55), V(ux, roofY + 0.3, front + 0.55));
+    const upRope = makeRope(V(ux, 0.1, front + 0.76), V(ux, roofY + 0.3, front + 0.76));
     G.engine.scene.add(upRope); this.addProp(upRope);
-    this.upA = V(ux, 0, front + 0.8); this.upB = V(ux, roofY, front + 0.8);
+    this.upA = V(ux, 0, front + 0.26); this.upB = V(ux, roofY, front + 0.26);
 
     // 외벽 창문 화점 2곳 (로프 경로 위)
     const wp1 = W.windowPos(W.siteB, 5, 3), wp2 = W.windowPos(W.siteB, 5, 1);
@@ -335,9 +388,7 @@ export class RappelMission extends FieldMission {
     this.baseRing = this.ring(ux, front + 2.0, 1.3, '#ffd24a');
     this.amb = V(B.x - 10, 0, front + 4.8);
     this.ambRing = this.ring(this.amb.x, this.amb.z, 1.8, '#4be08a');
-    const st = new THREE.Group();
-    box(st, 2.0, 0.12, 0.7, 0, 0.45, 0, std('#e8ebee', 0.6, 0.1));
-    for (const dx of [-0.8, 0.8]) for (const dz of [-0.25, 0.25]) box(st, 0.06, 0.4, 0.06, dx, 0.2, dz, std('#6c737a', 0.5, 0.6));
+    const st = makeStretcher();
     st.position.set(this.amb.x, 0, this.amb.z); G.engine.scene.add(st); this.addProp(st);
 
     // 1) 장비 착용
@@ -345,7 +396,7 @@ export class RappelMission extends FieldMission {
       pos: this.gearPt, radius: 3.6, label: '로프 장비 착용 (하네스·카라비너·하강기)', hold: 1.6,
       enabled: () => !this.rigged,
       onUse: () => {
-        this.rigged = true; G.sfx.ok(); G.ui.toast('하네스·헬멧 턱끈·카라비너·하강기를 착용했습니다', 'good');
+        this.rigged = true; P.human.setRig(true); P.human.play('check', 1.2); G.sfx.ok(); G.ui.toast('하네스·헬멧 턱끈·카라비너·하강기를 착용했습니다', 'good');
         this.complete('gear');
       },
     });
@@ -355,7 +406,7 @@ export class RappelMission extends FieldMission {
       enabled: () => this.rigged && !P.control && P.pos.y < 1 && !this.onRoof && !P.carry,
       onUse: () => {
         const c = new Climb(G, {
-          A: this.upA, B: this.upB, s: 0, speed: 1.8, face: Math.PI, label: '🧗 W/S 로 등반 — 옥상 도착까지 계속 누르세요',
+          A: this.upA, B: this.upB, s: 0, speed: 1.5, face: Math.PI, type: 'rope', camYaw: 0.95, camDist: 5.6, label: '🧗 W/S 로 등반 — 옥상 도착까지 계속 누르세요',
           onTop: () => {
             P.pos.set(ux, roofY, front - 1.3); P.heading = Math.PI; P.root.rotation.y = Math.PI; G.camRig.yaw = Math.PI;
             this.onRoof = true; this.complete('climb');
@@ -372,7 +423,7 @@ export class RappelMission extends FieldMission {
       enabled: () => this.onRoof && !P.carry && !this.rescued,
       onUse: () => {
         this.rescued = true; P.pickUp(this.surv);
-        G.ui.toast('요구조자 하네스를 체결하고 안고 있습니다', 'good'); this.complete('rescue');
+        G.ui.toast('요구조자 하네스를 체결하고 업었습니다', 'good'); this.complete('rescue');
       },
     });
     // 4) 하강 전 점검 3단계
@@ -397,12 +448,12 @@ export class RappelMission extends FieldMission {
       enabled: () => this.onRoof && this.checks >= 3 && !!P.carry && !P.control,
       onUse: () => {
         const c = new Climb(G, {
-          A: this.ropeA, B: this.ropeB, s: 1, speed: 1.7, face: Math.PI, lat: 5.2,
+          A: this.ropeA, B: this.ropeB, s: 1, speed: 1.3, face: Math.PI, lat: 5.2, type: 'rappel', camYaw: 0.95, camDist: 5.8,
           label: '⬇ S 로 하강 · 화염 구간은 A/D 로 옆으로 피하세요',
-          onTick: (cl) => { this.rope.position.x = cl.dx; },
+          onTick: (cl) => this.updateDescentRope(cl),
           onBottom: () => {
             P.pos.set(rx + c.dx, 0, front + 2.2); P.heading = 0; P.root.rotation.y = 0; G.camRig.yaw = 0;
-            this.rope.position.x = 0; this.complete('down');
+            this.dr1.visible = this.dr2.visible = false; this.complete('down');
             G.ui.toast('지상 도착 — 구급대에 인계하세요', 'info');
           },
         });
@@ -414,8 +465,7 @@ export class RappelMission extends FieldMission {
       pos: this.amb, radius: 3.2, label: '요구조자를 구급대에 인계', hold: 1.2,
       enabled: () => !!P.carry && P.pos.y < 1 && !P.control,
       onUse: () => {
-        this.handover(P, this.surv, V(this.amb.x, 0.5, this.amb.z), 0);
-        this.surv.root.position.set(this.amb.x, 0.55, this.amb.z);
+        this.handover(P, this.surv, V(this.amb.x, 0, this.amb.z));
         this.complete('hand'); G.ui.banner('구조 완료');
         setTimeout(() => this.finish(true), 1600);
       },
@@ -429,6 +479,21 @@ export class RappelMission extends FieldMission {
       .addObj('hand', '구급대에 인계한다');
     this.setActive('gear');
     G.ui.toast('로프는 선발대가 옥상 앵커에 고정했습니다. 장비를 착용하고 등반하세요', 'info');
+  }
+
+  // 하강 중: 가장자리 → 하강기 → 아래로 늘어진 로프 꼬리
+  updateDescentRope(cl) {
+    const P = this.G.player, dev = P.human.rigDev.getWorldPosition(V(0, 0, 0));
+    this.rope.visible = false; this.dr1.visible = this.dr2.visible = true;
+    const set = (m, a, b) => {
+      const d = b.clone().sub(a), len = Math.max(0.01, d.length());
+      m.scale.set(1, len / (m.userData.len || 1), 1);
+      m.position.copy(a).addScaledVector(d, 0.5);
+      m.quaternion.setFromUnitVectors(V(0, 1, 0), d.normalize());
+    };
+    if (!this.dr1.userData.len) { this.dr1.userData.len = this.dr1.geometry.parameters.height; this.dr2.userData.len = this.dr2.geometry.parameters.height; }
+    set(this.dr1, V(this.edgePt.x + cl.dx, this.edgePt.y, this.edgePt.z), dev);
+    set(this.dr2, dev, V(dev.x, Math.max(0.1, dev.y - 3.2), dev.z + 0.05));
   }
 
   update(dt) {
@@ -528,10 +593,9 @@ export class TunnelMission extends FieldMission {
     // 인계 지점 (입구 근처)
     this.amb = I.p(4.2, 0, 5.8);
     this.ambRing = this.ring(this.amb.x, this.amb.z, 1.9, '#4be08a');
-    const st = new THREE.Group();
-    box(st, 2.0, 0.12, 0.7, 0, 0.45, 0, std('#e8ebee', 0.6, 0.1));
-    for (const dx of [-0.8, 0.8]) for (const dz of [-0.25, 0.25]) box(st, 0.06, 0.4, 0.06, dx, 0.2, dz, std('#6c737a', 0.5, 0.6));
+    const st = makeStretcher();
     st.position.set(this.amb.x, 0, this.amb.z); I.group.add(st); this.addProp(st);
+    const st2 = makeStretcher(); st2.position.set(this.amb.x, 0, this.amb.z + 1.3); I.group.add(st2); this.addProp(st2);
 
     // 상호작용
     this.addInteract({
@@ -556,14 +620,14 @@ export class TunnelMission extends FieldMission {
     });
     this.vPos.forEach((vp, i) => {
       this.addInteract({
-        pos: vp, radius: 2.4, label: `요구조자 ${i + 1} 구조 (어깨에 메기)`, hold: 1.6,
+        pos: vp, radius: 2.4, label: `요구조자 ${i + 1} 구조 (업기)`, hold: 1.6,
         enabled: () => !P.carry && !this.victims[i].saved,
         onUse: () => {
           const near = this.fires.find((f) => f.alive && f.pos.distanceTo(P.pos) < 3.6);
           if (near) { G.ui.toast('화점이 너무 가깝습니다! 먼저 진압하세요', 'warn'); return; }
           this.victims[i].saved = false;
           this.carrying = i;
-          P.pickUp(this.victims[i]); G.ui.toast('요구조자를 어깨에 메었습니다 — 터널 입구 인계 지점으로!', 'good');
+          P.pickUp(this.victims[i]); G.ui.toast('요구조자를 업었습니다 — 터널 입구 인계 지점으로!', 'good');
         },
       });
     });
@@ -572,8 +636,7 @@ export class TunnelMission extends FieldMission {
       enabled: () => !!P.carry,
       onUse: () => {
         const v = P.carry;
-        this.handover(P, v, V(this.amb.x, 0.5, this.amb.z + (this.saved ? 1.1 : 0)), 0);
-        v.root.position.set(this.amb.x, 0.55, this.amb.z + (this.saved ? 1.1 : 0));
+        this.handover(P, v, V(this.amb.x, 0, this.amb.z + (this.saved ? 1.3 : 0)));
         v.saved = true; this.saved++;
         G.sfx.ok(); G.ui.banner(`요구조자 ${this.saved}/2 인계`);
       },
@@ -781,12 +844,15 @@ export class WaspMission extends FieldMission {
   }
 
   onSpray(m, dir, dt) {
+    const P = this.G.player, head = V(P.pos.x, P.pos.y + 1.3, P.pos.z);
     for (const w of this.wasps) {
       if (!w.alive) continue;
       const v = w.pos.clone().sub(m), d = v.length();
-      if (d > 8.5 || d < 0.2) continue;
-      if (v.divideScalar(d).dot(dir) > 0.9) {
-        w.hp -= dt; w.stun = 0.4;
+      // ① 부채꼴: 조준 방향 약 37° 안, 사거리 10m  ② 몸 근처(2.4m 이내)로 붙은 벌은 방향과 무관하게 약제 안개에 맞음
+      const inCone = d <= 10 && d >= 0.05 && (d < 0.4 || v.clone().divideScalar(d).dot(dir) > 0.8);
+      const close = w.pos.distanceTo(head) < 2.4;
+      if (inCone || close) {
+        w.hp -= dt * (close && !inCone ? 0.7 : 1); w.stun = 0.4;
         if (w.hp <= 0) this.killWasp(w);
       }
     }
@@ -860,6 +926,14 @@ export class WaspMission extends FieldMission {
       w.g.lookAt(w.pos.x + (head.x - w.pos.x), w.pos.y + (head.y - w.pos.y) * 0.5, w.pos.z + (head.z - w.pos.z));
     }
     this.buzz = this.wasps.some((w) => w.alive) ? (this.swarm ? 0.3 + Math.min(1, near / 4) * 0.7 : 0.18) : 0;
+    // 안전장치: 벌이 벽·장애물 안쪽/비정상 위치에 끼면 플레이어 쪽으로 되돌림, 마지막 벌은 위치를 표시
+    for (const w of this.wasps) {
+      if (!w.alive || !w.chase || w.cd > 0 || this.nestTaken) continue;
+      const bad = !Number.isFinite(w.pos.x + w.pos.y + w.pos.z) || w.pos.distanceTo(head) > 45 || G.world.pointInSolid(w.pos.x, w.pos.y, w.pos.z);
+      if (bad) { w.pos.copy(head).add(V(rand(-2, 2), rand(0.2, 1.2), rand(-2, 2))); }
+    }
+    const left = this.wasps.filter((w) => w.alive);
+    this._lastWasp = this.swarm && left.length > 0 && left.length <= 2 ? left[0] : null;
 
     // 사다리 위에서 벌집 제거 (E 길게)
     const onLad = P.control && P.control === this.climb && this.climb.s > 0.9 && this.swarmDone && !this.nestTaken;
@@ -878,7 +952,7 @@ export class WaspMission extends FieldMission {
     let t = null;
     if (!this.sprayOk) t = { pos: V(this.suppPt.x, 2.6, this.suppPt.z), label: '소방차 · 스프레이' };
     else if (!this.swarm) t = { pos: V(this.nest.x, this.nest.y + 1.2, this.nest.z), label: '말벌집' };
-    else if (!this.swarmDone) t = null;
+    else if (!this.swarmDone) t = this._lastWasp ? { pos: this._lastWasp.pos.clone().add(V(0, 0.6, 0)), label: `남은 말벌 ${this.wasps.filter((w) => w.alive).length}마리` } : null;
     else if (!this.placed && !this.hasLadder) t = { pos: V(this.suppPt.x, 2.6, this.suppPt.z), label: '소방차 · 사다리' };
     else if (this.hasLadder) t = { pos: V(this.lad.A.x, 1.8, this.lad.A.z), label: '사다리 설치 위치' };
     else if (!this.nestTaken) t = { pos: V(this.nest.x, this.nest.y + 1.0, this.nest.z), label: '벌집 제거' };
