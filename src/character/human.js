@@ -99,7 +99,7 @@ function shell(r, sc, phiStart, phiLen, thetaStart, thetaLen) {
 export class Human {
   constructor(o = {}) {
     this.o = Object.assign(
-      { skin: '#c99472', hair: '#1b1511', shirt: '#2b3b58', pants: '#262d3c', shoes: '#27272b', scale: 1, longHair: false },
+      { skin: '#c99472', hair: '#1b1511', shirt: '#ee7b1f', pants: '#1a2033', shoes: '#141418', scale: 1, longHair: false },
       o,
     );
     this.skinMat = std(this.o.skin, 0.6);
@@ -107,6 +107,8 @@ export class Human {
     this.shirtMat = std(this.o.shirt, 0.9);
     this.pantsMat = std(this.o.pants, 0.9);
     this.shoeMat = std(this.o.shoes, 0.6);
+    this.uni = o.shirt === undefined; // 기본 활동복(주황) 여부
+    this.navyMat = std('#1b2339', 0.85); // 활동복 측면 패널·견장
 
     this.root = new THREE.Group();
     this.root.scale.setScalar(this.o.scale);
@@ -170,6 +172,16 @@ export class Human {
       add(sp, cap(0.17, 0.4), this.shirtMat, 0, 0.37, 0, { s: [1.2, 1, 0.82] }),
       add(sp, cap(0.065, 0.48), this.shirtMat, 0, 0.49, 0, { rz: Math.PI / 2 }),
     );
+    if (this.uni) {
+      // 활동복 디자인: 양옆 남색 패널 + 견장 + 가슴 지퍼선
+      this.baseG.shirt.push(
+        add(sp, rbox(0.045, 0.62, 0.2, 0.015), this.navyMat, 0.205, 0.27, 0, { rz: -0.04 }),
+        add(sp, rbox(0.045, 0.62, 0.2, 0.015), this.navyMat, -0.205, 0.27, 0, { rz: 0.04 }),
+        add(sp, rbox(0.03, 0.46, 0.012, 0.005), this.navyMat, 0, 0.3, 0.175),
+        add(sp, rbox(0.09, 0.025, 0.07, 0.008), this.navyMat, 0.17, 0.57, 0.01),
+        add(sp, rbox(0.09, 0.025, 0.07, 0.008), this.navyMat, -0.17, 0.57, 0.01),
+      );
+    }
     // 방화복 상의
     this.gearG.coat.push(
       add(sp, cap(0.19, 0.42), MAT.coat, 0, 0.36, 0, { s: [1.2, 1, 0.84] }),
@@ -198,8 +210,9 @@ export class Human {
       this.arms[name] = { sh, el, wr, hand };
       // 평상복 소매
       this.baseG.shirt.push(
-        add(sh, cap(0.05, 0.31), this.shirtMat, 0, -0.145, 0),
-        add(el, cap(0.042, 0.27), this.shirtMat, 0, -0.13, 0),
+        add(sh, cap(0.054, 0.19), this.shirtMat, 0, -0.095, 0),
+        add(sh, cap(0.044, 0.2), this.skinMat, 0, -0.22, 0),
+        add(el, cap(0.04, 0.27), this.skinMat, 0, -0.13, 0),
       );
       this.baseG.hands.push(
         add(wr, sphere(0.043), this.skinMat, 0, -0.065, 0.005, { s: [0.85, 1.35, 0.7] }),

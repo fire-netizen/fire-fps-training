@@ -6,6 +6,7 @@ export const ZONES = {
   outdoor: { fog: '#c7a58c', density: 0.0072, hemi: 1.25, sun: 2.7, bg: '#c7a58c', hemiSky: '#a9bfe0', hemiGround: '#5a4a3c', exposure: 1.05 },
   smoky: { fog: '#14110f', density: 0.1, hemi: 0.32, sun: 0.0, bg: '#0c0a09', hemiSky: '#6a625a', hemiGround: '#2a2320', exposure: 1.2 },
   lab: { fog: '#26282b', density: 0.010, hemi: 1.0, sun: 0.0, bg: '#1c1e21', hemiSky: '#dfe4ea', hemiGround: '#6a665e', exposure: 1.1 },
+  tunnel: { fog: '#050506', density: 0.045, hemi: 0.18, sun: 0.0, bg: '#030304', hemiSky: '#3a4048', hemiGround: '#14120f', exposure: 1.35 },
   shop: { fog: '#2c2824', density: 0.012, hemi: 0.95, sun: 0.0, bg: '#201d1a', hemiSky: '#d9cdb8', hemiGround: '#6a5a48', exposure: 1.1 },
 };
 

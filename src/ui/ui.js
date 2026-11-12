@@ -34,6 +34,7 @@ export class UI {
         <div id="tools">
           <div class="slot" id="slotHose"><kbd>1</kbd><span>관창</span><small id="modeTxt">직사</small></div>
           <div class="slot" id="slotExt"><kbd>2</kbd><span>소화기</span><small id="pinTxt">안전핀</small></div>
+          <div class="slot hidden" id="slotLamp"><kbd>L</kbd><span>헬멧 랜턴</span><small id="lampTxt">OFF</small></div>
           <div class="slot" id="slotTic"><kbd>T</kbd><span>열화상</span><small id="ticTxt">OFF</small></div>
         </div>
         <div id="keys"><span><kbd>WASD</kbd> 이동</span><span><kbd>Shift</kbd> 달리기</span><span><kbd>C</kbd> 자세 낮춤</span><span><kbd>E</kbd> 상호작용</span><span><kbd>클릭</kbd>/<kbd>Space</kbd> 방수</span><span><kbd>Q</kbd> 직사/분무</span><span><kbd>Esc</kbd> 일시정지</span></div>
@@ -134,16 +135,21 @@ export class UI {
     w('airBar', st.air); set('airTxt', `${Math.ceil(st.air)}%`);
     $('airBar').parentElement.classList.toggle('low', st.air < 30);
     const tool = P.tool;
-    $('agentRow').classList.toggle('hidden', !(tool === 'hose' || tool === 'ext' || (tool === 'agent' && P.agentSel)));
+    $('agentRow').classList.toggle('hidden', !(tool === 'hose' || tool === 'ext' || tool === 'spray' || (tool === 'agent' && P.agentSel)));
     if (tool === 'agent') { set('agentLabel', '약제'); w('agentBar', st.ext); set('agentTxt', `${Math.ceil(st.ext)}%`); }
+    else if (tool === 'spray') { set('agentLabel', '퇴치제'); w('agentBar', st.ext); set('agentTxt', `${Math.ceil(st.ext)}%`); }
     else if (tool === 'ext') { set('agentLabel', '소화약제'); w('agentBar', st.ext); set('agentTxt', `${Math.ceil(st.ext)}%`); }
     else { set('agentLabel', '용수'); w('agentBar', st.water); set('agentTxt', `${Math.ceil(st.water)}%`); }
     $('survRow').classList.toggle('hidden', d.survivor == null);
     if (d.survivor != null) { w('survBar', d.survivor); set('survTxt', `${Math.ceil(d.survivor)}%`); $('survBar').parentElement.classList.toggle('low', d.survivor < 35); }
     set('mTimer', fmtTime(d.time));
     $('hint').classList.toggle('hidden', !this._hint || !this.modal.classList.contains('hidden'));
-    $('slotHose').classList.toggle('on', tool === 'hose');
-    $('slotHose').classList.toggle('off', !P.allowed.hose || !P.hoseReady);
+    $('slotLamp').classList.toggle('hidden', !P.allowed.lamp);
+    $('slotLamp').classList.toggle('on', !!P.lamp);
+    set('lampTxt', P.lamp ? 'ON' : 'OFF');
+    $('slotHose').classList.toggle('on', tool === 'hose' || tool === 'spray');
+    if (this._spr !== !!P.allowed.spray) { this._spr = !!P.allowed.spray; $('slotHose').querySelector('span').textContent = this._spr ? '벌 퇴치 스프레이' : '관창'; $('slotHose').querySelector('small').classList.toggle('hidden', this._spr); }
+    $('slotHose').classList.toggle('off', P.allowed.spray ? false : (!P.allowed.hose || !P.hoseReady));
     $('slotExt').classList.toggle('on', tool === 'ext');
     $('slotExt').classList.toggle('off', !P.allowed.ext);
     $('slotTic').classList.toggle('on', P.tic);
@@ -151,8 +157,8 @@ export class UI {
     set('modeTxt', P.mode === 'jet' ? '직사' : '분무');
     set('pinTxt', P.pin ? '안전핀 ●' : '해제 ✔');
     set('ticTxt', P.tic ? 'ON' : 'OFF');
-    $('tools').classList.toggle('hidden', !(P.allowed.hose || P.allowed.ext || P.allowed.tic));
-    $('cross').style.display = (tool === 'hose' || tool === 'ext' || tool === 'agent') && d.crosshair ? 'block' : 'none';
+    $('tools').classList.toggle('hidden', !(P.allowed.hose || P.allowed.ext || P.allowed.tic || P.allowed.spray || P.allowed.lamp));
+    $('cross').style.display = (tool === 'hose' || tool === 'ext' || tool === 'agent' || tool === 'spray') && d.crosshair ? 'block' : 'none';
     // 화면 효과
     $('fxHurt').style.opacity = String(Math.min(0.85, P.hurtFlash));
     $('fxSmoke').style.opacity = String(d.smoke || 0);

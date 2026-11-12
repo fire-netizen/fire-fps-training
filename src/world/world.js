@@ -19,6 +19,8 @@ export const LAYOUT = {
   interiorB: [0, 0, 400],
   interiorC: [300, 0, 400],
   interiorD: [600, 0, 400],
+  interiorT: [900, 0, 400],
+  siteT: { x: 116, z: -34, truck: [100, -3.6], spawn: [108, -9.6] },
 };
 
 export class World {
@@ -38,6 +40,7 @@ export class World {
     this.buildSmokeInterior();
     this.buildShop();
     this.buildLab();
+    this.buildTunnel();
     this.showZone('outdoor');
   }
 
@@ -68,7 +71,7 @@ export class World {
       for (const s of this.solids) {
         if (!s.active) continue;
         const b = s.box;
-        if (b.max.y < 0.15 || b.min.y > 1.7) continue;
+        if (b.max.y < pos.y + 0.15 || b.min.y > pos.y + 1.7) continue; // 점프 중에는 낮은 장애물 위를 넘음
         if (pos.x < b.min.x - r || pos.x > b.max.x + r || pos.z < b.min.z - r || pos.z > b.max.z + r) continue;
         const cx = clamp(pos.x, b.min.x, b.max.x), cz = clamp(pos.z, b.min.z, b.max.z);
         const ddx = pos.x - cx, ddz = pos.z - cz, d2 = ddx * ddx + ddz * ddz;
@@ -108,6 +111,7 @@ export class World {
     this.intB.group.visible = name === 'smoky';
     this.intC.group.visible = name === 'shop';
     this.intD.group.visible = name === 'lab';
+    this.intT.group.visible = name === 'tunnel';
     this.engine.setZone(name);
     this.lampSources = name === 'shop' ? this.intC.lamps : name === 'lab' ? this.intD.lamps : [];
   }
@@ -186,11 +190,13 @@ export class World {
     plaza(L.siteA.x, -14.2, 36, 8.2);
     plaza(L.siteB.x, -14.2, 44, 8.2);
     plaza(L.siteC.x, -13.2, 34, 8.2);
+    plaza(L.siteT.x, -14.2, 36, 8.2);
 
     this.buildStation();
     this.buildSiteA();
     this.buildSiteB();
     this.buildSiteC();
+    this.buildPortal();
     this.buildCity();
 
     // 소방차
@@ -389,8 +395,10 @@ export class World {
     this.truck.rotation.y = yaw;
     const s = this.truck.userData.size;
     const b = this.truckSolid.box;
-    b.min.set(x - s.w / 2, 0, z - s.d / 2);
-    b.max.set(x + s.w / 2, s.h, z + s.d / 2);
+    const c = Math.abs(Math.cos(yaw)), sn = Math.abs(Math.sin(yaw));
+    const ex = (c * s.w + sn * s.d) / 2, ez = (sn * s.w + c * s.d) / 2; // 회전한 차체를 감싸는 상자
+    b.min.set(x - ex, 0, z - ez);
+    b.max.set(x + ex, s.h, z + ez);
   }
 
   // ═════════════════ 실내 B: 연기 가득한 공동주택 ═════════════════
@@ -666,4 +674,60 @@ export class World {
     ];
     grp.visible = false;
   }
+  // ═════════════════ 외부: 터널 입구(시나리오 8) ═════════════════
+  buildPortal() {
+    const g = this.out, T = LAYOUT.siteT;
+    const front = T.z + 7;
+    const hill = std('#6d7a63', 0.95, 0);
+    this.box(g, 34, 10, 14, T.x, 5, T.z, hill, { solid: true, tag: 'hill' });
+    this.box(g, 22, 8, 1.2, T.x, 4, front + 0.3, std('#9a9a96', 0.85, 0.05), { solid: true, tag: 'portal' });
+    this.box(g, 12.6, 6.4, 0.3, T.x, 3.2, front + 0.95, std('#050505', 0.9, 0), { cast: false });
+    this.box(g, 13.6, 0.7, 1.4, T.x, 6.55, front + 0.8, std('#b3b3ae', 0.8, 0.05));
+    for (const sx of [-1, 1]) this.box(g, 0.7, 6.6, 1.4, T.x + sx * 6.7, 3.3, front + 0.8, std('#b3b3ae', 0.8, 0.05));
+    this.box(g, 7, 0.9, 0.2, T.x, 8.6, front + 1.0, new THREE.MeshStandardMaterial({ map: labelTexture('119 안전터널', { w: 640, h: 96, bg: '#1d4f7a', fg: '#fff', font: 'bold 50px sans-serif' }), roughness: 0.5 }));
+    // 연기가 새어나옴
+    this.portalSmoke = new THREE.Vector3(T.x, 5.2, front + 1.2);
+  }
+
+  // ═════════════════ 실내 T: 어두운 도로터널 (시나리오 8) ═════════════════
+  buildTunnel() {
+    const grp = new THREE.Group();
+    this.scene.add(grp);
+    const O = LAYOUT.interiorT;
+    const I = (this.intT = { group: grp, O: new THREE.Vector3(...O), lamps: [] });
+    const wx = (x) => O[0] + x, wz = (z) => O[2] + z;
+    const LEN = 84, HW = 6.2, H = 6.2;
+    const road = tiled(asphaltTex(), 3, 20); road.anisotropy = 4;
+    const roadMat = new THREE.MeshStandardMaterial({ map: road, roughness: 0.9 });
+    const wallMat = new THREE.MeshStandardMaterial({ map: tiled(concreteTex(), 3, 14), roughness: 0.95, color: '#9a9a96' });
+    const fl = this.mesh(grp, new THREE.PlaneGeometry(HW * 2, LEN + 20), roadMat, wx(0), 0.01, wz(LEN / 2 - 4), { cast: false }); fl.rotation.x = -Math.PI / 2;
+    // 차선
+    const line = std('#e8e2c8', 0.8, 0);
+    this.box(grp, 0.18, 0.012, LEN + 14, wx(0), 0.03, wz(LEN / 2 - 4), std('#e8c32a', 0.8, 0), { cast: false });
+    for (const sx of [-1, 1]) this.box(grp, 0.14, 0.012, LEN + 14, wx(sx * 5.5), 0.03, wz(LEN / 2 - 4), line, { cast: false });
+    // 벽 · 천장
+    for (const sx of [-1, 1]) this.box(grp, 0.7, H, LEN + 20, wx(sx * (HW + 0.35)), H / 2, wz(LEN / 2 - 4), wallMat, { solid: true, tag: 'wall' });
+    const ce = this.mesh(grp, new THREE.BoxGeometry(HW * 2 + 1.4, 0.6, LEN + 20), new THREE.MeshStandardMaterial({ color: '#7e7e7a', roughness: 0.95 }), wx(0), H + 0.3, wz(LEN / 2 - 4));
+    ce.castShadow = false;
+    this.solid(wx(0), H + 0.5, wz(LEN / 2 - 4), HW * 2 + 2, 0.6, LEN + 20, 'ceiling');
+    // 안쪽 막다름(붕괴 잔해)
+    this.box(grp, HW * 2, H, 2, wx(0), H / 2, wz(LEN + 1), std('#4a4742', 0.98, 0), { solid: true, tag: 'wall' });
+    // 천장 리브 + 비상구 유도등(초록)
+    const rib = std('#6c6c68', 0.9, 0.1);
+    for (let z = 4; z < LEN; z += 8) {
+      this.box(grp, HW * 2, 0.4, 0.5, wx(0), H - 0.25, wz(z), rib, { cast: false });
+      for (const sx of [-1, 1]) this.box(grp, 0.4, H, 0.5, wx(sx * (HW - 0.1)), H / 2, wz(z), rib, { cast: false });
+    }
+    const em = new THREE.MeshStandardMaterial({ map: labelTexture('비상구 →', { w: 256, h: 96, bg: '#0f7d3d', fg: '#fff', font: 'bold 52px sans-serif' }), emissive: '#14a85a', emissiveIntensity: 1.1 });
+    for (const z of [18, 44, 70]) this.box(grp, 0.08, 0.5, 1.4, wx(-HW + 0.02), 2.4, wz(z), em, { cast: false });
+    // 소화전함(벽)
+    const hyd = std('#c8281f', 0.5, 0.2);
+    for (const z of [10, 36, 62]) this.box(grp, 0.3, 1.1, 0.9, wx(HW - 0.3), 1.2, wz(z), hyd, { cast: false });
+    I.p = (x, y, z) => new THREE.Vector3(wx(x), y, wz(z));
+    I.spawn = I.p(0, 0, 3);
+    I.exit = I.p(0, 0, 0.5);
+    I.len = LEN; I.hw = HW; I.H = H;
+    grp.visible = false;
+  }
+
 }

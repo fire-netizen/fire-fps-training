@@ -10,6 +10,7 @@ import { Player, CameraRig } from './core/player.js';
 import { UI } from './ui/ui.js';
 import { Progress } from './data/progress.js';
 import { MISSIONS, missionById } from './missions/index.js';
+import { TruckDriver } from './core/vehicle.js';
 import { Human } from './character/human.js';
 import { clamp, lerp, shuffle } from './core/util.js';
 import { fmtTime } from './core/util.js';
@@ -72,7 +73,16 @@ class Game {
     this.hubIts = [
       { pos: new THREE.Vector3(board.x, 0, board.z + 2.2), radius: 3.6, label: '출동 상황판 · 임무 선택', onUse: () => this.openBoard() },
       { pos: npc.root.position, radius: 2.8, label: '김 팀장(소방위)과 대화', onUse: () => this.npcTalk() },
+      // 소방차는 출동 중이 아니어도 마음대로 운전할 수 있음
+      { pos: this.world.truck.position, radius: 6.2, label: '소방차 탑승 · 자유 운전', onUse: () => this.enterTruck() },
     ];
+  }
+
+  // 발코니·옥상 같은 발판 높이 (현재 높이에서 올라설 수 있는 가장 높은 발판)
+  groundAt(x, z, yNow = 0) {
+    let y = 0;
+    for (const p of this.platforms || []) if (p.y > y && p.y <= yNow + 0.6 && x > p.x0 && x < p.x1 && z > p.z0 && z < p.z1) y = p.y;
+    return y;
   }
 
   addHubIts() { for (const it of this.hubIts) if (!this.interactables.includes(it)) this.interactables.push(it); }
@@ -88,6 +98,7 @@ class Game {
     P.setMask(false);
     P.allowed = { hose: false, ext: false, tic: false };
     P.hoseReady = false; P.tool = null; P.human.setTool(null); P.tic = false; P.tether = null; P.carry = null;
+    P.control = null; P.lamp = false; P.mask = false; this.platforms = []; this.driveTarget = null;
     P.resetStats(this.progress);
     P.teleport(new THREE.Vector3(LAYOUT.spawnHub[0], 0, LAYOUT.spawnHub[1]), Math.PI);
     this.engine.setDensity(this.engine.zone.density);
@@ -97,6 +108,53 @@ class Game {
     this.ui.setObjectives('소방서 · 대기', [{ text: this.progress.gearDone ? '출동 상황판(E)에서 임무를 선택한다' : '먼저 1번 임무 「출동 준비」를 완료한다', active: true }, { text: '김 팀장과 대화하면 조언을 들을 수 있다', active: false }]);
     this.ui.setPass(null);
     this.state = 'play';
+  }
+
+  // 자유 운전: 하차(E)할 때까지 소방차를 직접 조종
+  enterTruck() {
+    if (this.player.control) return;
+    this.input.hit.delete("KeyE");
+    this.driver = new TruckDriver(this, { siren: false });
+    this.driver.start();
+    this.ui.setObjectives('소방차 운전', [{ text: 'W/S 가속·후진 · A/D 조향 · Space 브레이크 · R 사이렌', active: true }, { text: '정차 후 E 키로 내리기', active: false }]);
+  }
+
+  // 출동: 플레이어가 소방차를 직접 운전해 현장까지 간다 (G / ⏩ 버튼: 자동 출동)
+  async driveDispatch(def) {
+    const W = this.world, site = LAYOUT[def.site], home = LAYOUT.truckHome;
+    W.showZone('outdoor');
+    this.fx.clearAll();
+    this.engine.setZone('outdoor');
+    W.placeTruck(home[0], home[1], 0);
+    this.player.setGear({ ...FULL_GEAR });
+    const tgt = new THREE.Vector3(site.truck[0], 0, site.truck[1]);
+    this.driveTarget = { pos: tgt, label: '출동 현장' };
+    this.ui.setObjectives('출동 중', [{ text: `🚒 「${def.title}」 현장까지 소방차를 운전하세요`, active: true }, { text: '길을 모르면 화면의 현장 표시를 따라가세요 · G: 자동 출동', active: false }]);
+    this.ui.setPass(null);
+    const how = await new Promise((res) => {
+      this.driver = new TruckDriver(this, { target: { pos: tgt, radius: 8 }, siren: true, onArrive: res });
+      this.driver.start();
+      this.ui.show(true);
+      this.state = 'play';
+      this.input.active = true;
+      this.input.lock();
+      this.ui.fade(false, 500);
+      this.ui.banner('🚒 출동! 소방차를 운전해 현장으로', 2600);
+    });
+    this.state = 'trans';
+    this.input.active = false;
+    await this.ui.fade(true, 450);
+    this.driveTarget = null;
+    this.ui.show(false);
+    this.driver.stop(false);
+    this.driver = null;
+    this.ui.setMarker(null);
+    this.ui.setPrompt(null);
+    if (how === 'skip') { await this.dispatch(def); return; }
+    W.placeTruck(site.truck[0], site.truck[1], 0);
+    this.player.root.visible = true;
+    this.player.teleport(new THREE.Vector3(site.spawn[0], 0, site.spawn[1]), Math.PI);
+    this.engine.setDensity(this.engine.zone.density);
   }
 
   async openBoard() {
@@ -159,7 +217,7 @@ class Game {
     await this.ui.fade(true, 500);
     this.removeHubIts();
     this.ui.show(false);
-    if (def.dispatch) await this.dispatch(def);
+    if (def.dispatch) await this.driveDispatch(def);
     const m = def.create(this, def);
     this.player.resetStats(this.progress);
     this.player.allowed = { hose: false, ext: false, tic: false };
@@ -263,6 +321,7 @@ class Game {
   // ───────────── 갱신 ─────────────
   updateInteract(dt) {
     const P = this.player, inp = this.input;
+    if (P.control) { this.holdTarget = null; return; } // 운전·사다리·로프 조작 중에는 전용 안내만 표시
     if (this.mission && inp.pressed('KeyE') && this.mission.onE()) { this.holdT = 0; return; }
     let best = null, bd = 1e9;
     for (const it of this.interactables) {
@@ -284,6 +343,7 @@ class Game {
   updateMarker() {
     let t = this.mission ? this.mission.markerTarget : null;
     if (!this.mission && this.state === 'play') t = { pos: new THREE.Vector3(this.world.boardPos.x, 3.7, this.world.boardPos.z), label: '출동 상황판' };
+    if (!this.mission && this.driveTarget && this.state === 'play') t = { pos: new THREE.Vector3(this.driveTarget.pos.x, 4, this.driveTarget.pos.z), label: this.driveTarget.label };
     if (!t || this.state !== 'play') { this.ui.setMarker(null); return; }
     const v = this.tmp.copy(t.pos).project(this.engine.camera);
     if (v.z > 1) { this.ui.setMarker(null); return; }
@@ -346,6 +406,11 @@ class Game {
       hp.add(this.tmp.set(Math.sin(P.heading) * 0.5, 0.1, Math.cos(P.heading) * 0.5));
       src.push({ pos: hp, color: '#fff0d8', intensity: P.tic ? 3 : 18, distance: 11 });
     }
+    if (P.lamp && this.state === 'play') { // 헬멧 랜턴
+      const hp2 = P.human.head.getWorldPosition(new THREE.Vector3());
+      hp2.add(this.tmp.set(Math.sin(P.heading) * 0.6, 0.15, Math.cos(P.heading) * 0.6));
+      src.push({ pos: hp2, color: '#fff4dc', intensity: 26, distance: 17 });
+    }
     this.engine.assignLights(src, this.state === 'dispatch' ? this.world.truck.position : P.pos);
     // 열화상 표시
     this.engine.renderer.domElement.classList.toggle('tic', !!P.tic && this.state === 'play');
@@ -353,8 +418,9 @@ class Game {
     // 소리
     const a = P.audio || {};
     this.sfx.update(dt, {
-      siren: this.state === 'dispatch', water: this.state === 'play' ? a.water : 0, powder: this.state === 'play' ? a.powder : 0,
+      siren: this.state === 'dispatch' || !!(P.control && P.control.siren), water: this.state === 'play' ? a.water : 0, powder: this.state === 'play' ? a.powder : 0,
       fire: this.state === 'play' ? this.fireLevel() : 0,
+      buzz: this.state === 'play' && this.mission ? this.mission.buzz || 0 : 0,
       lowAir: !!(this.mission && this.mission.showAir && P.mask && P.stats.air < 30 && this.state === 'play'),
     });
     // HUD

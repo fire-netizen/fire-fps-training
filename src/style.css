@@ -129,6 +129,8 @@ html, body { overscroll-behavior: none; -webkit-user-select: none; user-select: 
 @keyframes tpulse { 50% { transform: scale(1.1); } }
 .t-sm { width: 52px; height: 52px; font-size: 15px; }
 .t-actions .t-sm { right: 86px; bottom: 112px; }
+.t-actions .t-jump { right: 86px; bottom: 172px; }
+.t-actions .t-lamp { right: 214px; bottom: 6px; }
 .t-tools { position: absolute; right: 116px; bottom: 14px; width: 100px; display: flex; flex-wrap: wrap-reverse; gap: 6px; justify-content: flex-end; pointer-events: none; }
 .t-tools .t-btn { position: static; width: 46px; height: 46px; font-size: 14px; }
 .t-tools .t-btn small { font-size: 8px; }
@@ -177,3 +179,9 @@ body.touch .t-hint { right: 150px; bottom: 102px; }
   .mist, .expbox { font-size: 14px; margin-top: 8px; padding: 8px 12px; }
   .mrow { padding: 8px 12px; } .mt { font-size: 17px; } .md { font-size: 13px; }
 }
+
+/* 임무 목록이 길어져도 상황판 안에서 스크롤 */
+.board { display: flex; flex-direction: column; max-height: calc(100vh - 70px); min-height: 0; width: 100%; }
+.board .mlist { overflow-y: auto; min-height: 0; flex: 1 1 auto; padding-right: 4px; touch-action: pan-y; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+@media (max-height: 520px) and (orientation: landscape) { .board { max-height: calc(100vh - 44px); } }
+body.touch #tools { display: none; }

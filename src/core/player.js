@@ -116,6 +116,7 @@ export class Player {
     this.frozen = false;
     this.tether = null;
     this.hurtFlash = 0;
+    this.vy = 0; this.grounded = true; this.control = null; this.lamp = false; // 점프 / 스크립트 조작(사다리·로프·운전)
     this.sweepAccum = 0;
     this.lastAimYaw = 0;
     this.stats = { hp: 100, maxHp: 100, air: 100, water: 100, ext: 100 };
@@ -141,6 +142,7 @@ export class Player {
     this.G.cam.pitchBack = null;
     this.G.cam.snap();
     this.speed = 0;
+    this.vy = 0; this.grounded = true;
   }
 
   resetStats(progress) {
@@ -171,8 +173,8 @@ export class Player {
     if (tool === 'hose' && !this.hoseReady) return false;
     this.tool = tool;
     const ag = tool === 'agent' && AGENTS.find((a) => a.id === this.agentSel);
-    this.human.setTool(tool === 'agent' ? (ag ? ag.visual : 'ext') : tool);
-    if (tool === 'agent') this.pin = false;
+    this.human.setTool(tool === 'agent' ? (ag ? ag.visual : 'ext') : tool === 'spray' ? 'ext' : tool);
+    if (tool === 'agent' || tool === 'spray') this.pin = false;
     this.human.setPin(this.pin);
     return true;
   }
@@ -209,6 +211,7 @@ export class Player {
   update(dt) {
     const G = this.G, inp = G.input, st = this.stats, human = this.human;
     if (this.frozen) { human.update(dt, { speed: 0 }); return; }
+    if (this.control) { this.control.update(dt); this.speed = 0; return; } // 사다리·로프·운전 중에는 전용 조작
 
     // ── 입력
     const fireKey = inp.mouse(0) || inp.isDown('Space');
@@ -216,8 +219,10 @@ export class Player {
     this.aiming = wantAim;
     if (inp.pressed('KeyC')) this.crouch = !this.crouch;
     if (this.allowed.agent) { for (let n = 0; n < AGENTS.length; n++) if (inp.pressed('Digit' + (n + 1))) this.selectAgent(n); }
-    if (!this.allowed.agent && inp.pressed('Digit1')) { if (this.equip(this.tool === 'hose' ? null : 'hose')) G.ui.toast(this.tool ? '관창(방수)' : '장비 해제', 'info'); else if (this.allowed.hose) G.ui.toast('호스를 먼저 전개하세요', 'warn'); }
-    if (!this.allowed.agent && inp.pressed('Digit2')) { if (this.equip(this.tool === 'ext' ? null : 'ext')) G.ui.toast(this.tool ? '소화기' : '장비 해제', 'info'); }
+    if (this.allowed.spray && inp.pressed('Digit1')) { this.equip(this.tool === 'spray' ? null : 'spray'); G.ui.toast(this.tool ? '벌 퇴치 스프레이 (Space/클릭: 분사)' : '장비 해제', 'info'); G.sfx.click(); }
+    if (inp.pressed('KeyL') && this.allowed.lamp) { this.lamp = !this.lamp; G.sfx.click(); G.ui.toast(this.lamp ? '🔦 헬멧 랜턴 ON' : '🔦 헬멧 랜턴 OFF', 'info'); }
+    if (!this.allowed.agent && !this.allowed.spray && inp.pressed('Digit1')) { if (this.equip(this.tool === 'hose' ? null : 'hose')) G.ui.toast(this.tool ? '관창(방수)' : '장비 해제', 'info'); else if (this.allowed.hose) G.ui.toast('호스를 먼저 전개하세요', 'warn'); }
+    if (!this.allowed.agent && !this.allowed.spray && inp.pressed('Digit2')) { if (this.equip(this.tool === 'ext' ? null : 'ext')) G.ui.toast(this.tool ? '소화기' : '장비 해제', 'info'); }
     if (inp.pressed('KeyT') && this.allowed.tic) { this.tic = !this.tic; G.sfx.click(); }
     if (inp.pressed('KeyQ') && this.tool === 'hose') { this.mode = this.mode === 'jet' ? 'fog' : 'jet'; G.ui.toast(this.mode === 'jet' ? '직사 방수 (원거리·강한 압력)' : '분무 방수 (넓은 범위·복사열 차단)', 'info'); G.sfx.click(); }
 
@@ -263,6 +268,19 @@ export class Player {
       this.sprayT += dt;
       this.sprayReady = (this.sprayT > 0.22 && Math.abs(wrapAngle(this.heading - yaw)) < 0.16) || this.sprayT > 0.6;
     } else this.sprayReady = false;
+    // ── 점프 (Space: 장비를 들고 있지 않을 때 / F: 언제나)
+    const gy = G.groundAt ? G.groundAt(this.pos.x, this.pos.z, this.pos.y) : 0;
+    if (this.grounded && this.pos.y > gy + 0.08) { this.grounded = false; this.vy = 0; } // 발판(발코니·옥상) 가장자리에서 떨어짐
+    if (this.grounded && (inp.pressed('KeyF') || (inp.pressed('Space') && !this.tool)) && !this.carry && !sprayWant && !this.crouch) {
+      this.vy = 6.6; this.grounded = false; G.sfx.click && G.sfx.click();
+    }
+    if (!this.grounded) {
+      this.vy -= 19 * dt; this.pos.y += this.vy * dt;
+      if (this.pos.y <= gy) {
+        if (this.vy < -9.5) { this.hurt((-this.vy - 9.5) * 5, 'fall'); G.sfx.hurt && G.sfx.hurt(); G.shake = Math.max(G.shake || 0, 0.6); G.ui.toast('⚠ 높은 곳에서 떨어졌습니다!', 'bad'); }
+        this.pos.y = gy; this.vy = 0; this.grounded = true;
+      }
+    } else this.pos.y = gy;
     // 호스 길이 제한
     if (this.tether) {
       const dx = this.pos.x - this.tether.pos.x, dz = this.pos.z - this.tether.pos.z, d = Math.hypot(dx, dz);
@@ -305,7 +323,7 @@ export class Player {
       if (!this._heatWarn || performance.now() - this._heatWarn > 4000) { G.ui.toast('복사열 경고! 화점에서 거리를 두세요', 'warn'); this._heatWarn = performance.now(); }
     }
     // 연기 구역
-    if (G.world.zone === 'smoky') {
+    if (G.world.zone === 'smoky' || G.world.zone === 'tunnel') {
       if (!this.mask) {
         this.hurt(6.5 * dt, 'smoke');
         if (!this._smokeWarn || performance.now() - this._smokeWarn > 4000) { G.ui.toast('유독가스 흡입 중! 면체를 착용하세요', 'warn'); this._smokeWarn = performance.now(); }
@@ -314,7 +332,7 @@ export class Player {
         st.air = Math.max(0, st.air - rate * dt);
         if (st.air <= 0) this.hurt(9 * dt, 'air');
       }
-      if (!this.crouch) this.hurt(0.9 * dt * (this.gearOn.coat ? 0.6 : 1), 'hotlayer');
+      if (G.world.zone === 'smoky' && !this.crouch) this.hurt(0.9 * dt * (this.gearOn.coat ? 0.6 : 1), 'hotlayer');
     }
   }
 
@@ -357,6 +375,18 @@ export class Player {
       this.sweepAccum += dy;
       G.passState && G.passState(dt, this);
       if (st.ext <= 0) G.ui.toast('소화기 방사 종료', 'warn');
+    } else if (this.tool === 'spray' && fireKey && st.ext > 0) {
+      // 벌 퇴치 스프레이: 부채꼴 안의 말벌에 효과
+      this.firing = true;
+      this.computeAim();
+      const m = this.muzzle(this._m);
+      const dir = this._d.copy(this.aimPoint).sub(m).normalize();
+      if (dir.dot(G.camRig.dir) < 0.2) dir.copy(G.camRig.dir);
+      fx.sprayPowder(m, dir, dt);
+      st.ext = Math.max(0, st.ext - 4.5 * dt);
+      powder = 0.12;
+      G.mission && G.mission.onSpray && G.mission.onSpray(m, dir, dt);
+      if (st.ext <= 0) G.ui.toast('스프레이 소진 — 소방차에서 보충(E)', 'warn');
     } else if (this.tool === 'agent' && fireKey) {
       const id = this.agentSel, amt = id ? this.agentAmt[id] ?? 0 : 0;
       if (id && amt > 0) {
