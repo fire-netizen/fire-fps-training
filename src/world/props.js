@@ -141,3 +141,23 @@ export function makeBarrier(length = 10) {
 
 export const PROPS_MAT = M;
 export { add, rbox, std };
+
+// 구급차: 전방 = +X
+export function makeAmbulance() {
+  const g = new THREE.Group();
+  const white = std('#f2f2f0', 0.35, 0.2), red = std('#d02a22', 0.4);
+  add(g, rbox(5.6, 0.5, 2.1, 0.08), M.grey, 0, 0.7, 0);
+  add(g, rbox(3.4, 1.9, 2.2, 0.15), white, -1.0, 1.85, 0);
+  add(g, rbox(1.9, 1.45, 2.15, 0.25), white, 2.0, 1.55, 0);
+  add(g, rbox(0.7, 0.8, 2.0, 0.1), M.glass, 2.55, 1.9, 0);
+  add(g, rbox(3.42, 0.28, 2.22, 0.03), red, -1.0, 1.55, 0);
+  add(g, rbox(1.92, 0.2, 2.17, 0.03), red, 2.0, 1.2, 0);
+  for (const s of [-1, 1]) {
+    const cross = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.95), new THREE.MeshBasicMaterial({ map: labelTexture('✚ 구급 119', { w: 384, h: 240, bg: '#f2f2f0', fg: '#d02a22', font: 'bold 62px sans-serif' }) }));
+    cross.position.set(-1.0, 2.25, s * 1.111); cross.rotation.y = s > 0 ? 0 : Math.PI; g.add(cross);
+  }
+  add(g, rbox(0.4, 0.14, 1.3, 0.04), std('#d02a22', 0.3, 0, { emissive: '#ff2a1a', emissiveIntensity: 1.6 }), 1.6, 2.38, -0.3);
+  add(g, rbox(0.4, 0.14, 1.3, 0.04), std('#2a5ad0', 0.3, 0, { emissive: '#2a6aff', emissiveIntensity: 1.6 }), 1.6, 2.38, 0.3);
+  for (const x of [2.0, -1.8]) for (const s of [-1, 1]) add(g, new THREE.CylinderGeometry(0.4, 0.4, 0.28, 16), M.rubber, x, 0.4, s * 1.0, { rx: Math.PI / 2 });
+  return g;
+}

@@ -27,6 +27,8 @@ export class TouchControls {
       </div>
       <div class="t-actions">
         <button class="t-btn t-sm t-hint hidden" data-act="hint">💡<small>힌트</small></button>
+        <button class="t-btn t-sm t-lamp hidden" data-act="lamp">🔦<small>랜턴</small></button>
+        <button class="t-btn t-sm t-jump" data-act="jump">⤒<small>점프</small></button>
         <button class="t-btn t-sm" data-act="crouch">⬇<small>자세</small></button>
         <button class="t-btn t-e" data-act="use">E<small>상호작용</small></button>
         <button class="t-btn t-fire" data-act="fire">💧<small>방수</small></button>
@@ -60,8 +62,12 @@ export class TouchControls {
     hold(this.fireBtn, () => { inp.buttons.add(0); inp.down.add('Space'); }, () => { inp.buttons.delete(0); inp.down.delete('Space'); });
     hold(this.useBtn, () => { inp.hit.add('KeyE'); inp.down.add('KeyE'); }, () => inp.down.delete('KeyE'));
     const tap = (el, fn) => el.addEventListener('pointerdown', (e) => { fn(); e.preventDefault(); });
+    tap(this.$('[data-act="jump"]'), () => inp.hit.add('KeyF'));
     tap(this.$('[data-act="crouch"]'), () => inp.hit.add('KeyC'));
     this.hintBtn = this.$('[data-act="hint"]');
+    this.jumpBtn = this.$('[data-act="jump"]');
+    this.lampBtn = this.$('[data-act="lamp"]');
+    tap(this.lampBtn, () => inp.hit.add('KeyL'));
     tap(this.hintBtn, () => inp.hit.add('KeyH'));
     tap(this.$('[data-act="pause"]'), () => inp.hit.add('Escape'));
     const code = { 1: 'Digit1', 2: 'Digit2', T: 'KeyT', Q: 'KeyQ' };
@@ -123,15 +129,21 @@ export class TouchControls {
     if (!vis) return;
     const A = P.allowed || {};
     const show = (el, on) => el.classList.toggle('hidden', !on);
-    show(this.toolBtns[0], !!A.hose);
-    show(this.toolBtns[1], !!A.ext);
+    show(this.toolBtns[0], !!A.hose || !!A.spray);
+    show(this.toolBtns[1], !!A.ext && !A.spray);
+    show(this.lampBtn, !!A.lamp);
+    this.toolBtns[0].querySelector('small').textContent = A.spray ? '스프레이' : '관창';
     show(this.toolBtns[2], !!A.tic);
     show(this.toolBtns[3], P.tool === 'hose');
-    show(this.fireBtn, !!P.tool && P.tool !== 'tic');
-    show(this.hintBtn, !!(G.mission && G.mission.hint));
+    const drv = !!P.control && !!P.control.opts; // 소방차 운전 중
+    const ctl = !!P.control; // 사다리·로프·운전 등 전용 조작 중
+    show(this.fireBtn, drv || (!!P.tool && P.tool !== 'tic' && !ctl));
+    show(this.hintBtn, !!(G.mission && G.mission.hint) || (drv && !!P.control.skip));
+    show(this.jumpBtn, !ctl);
     const ag = P.tool === 'agent';
-    this.fireBtn.firstChild.textContent = P.tool === 'ext' || ag ? '🧯' : '💧';
-    this.fireBtn.querySelector('small').textContent = P.tool === 'ext' || ag ? '분사' : '방수';
+    this.fireBtn.firstChild.textContent = drv ? '🛑' : P.tool === 'ext' || ag ? '🧯' : P.tool === 'spray' ? '💨' : '💧';
+    this.fireBtn.querySelector('small').textContent = drv ? '브레이크' : P.tool === 'ext' || ag ? '분사' : P.tool === 'spray' ? '퇴치' : '방수';
+    if (this._hintDrv !== drv) { this._hintDrv = drv; this.hintBtn.firstChild.textContent = drv ? '⏩' : '💡'; this.hintBtn.querySelector('small').textContent = drv ? '자동출동' : '힌트'; }
     this.useBtn.classList.toggle('pulse', !!G.holdTarget);
   }
 }

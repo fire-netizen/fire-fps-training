@@ -39,6 +39,12 @@ export class Sfx {
       const sg = c.createGain(); sg.gain.value = 0;
       osc.connect(lp); lp.connect(sg); sg.connect(this.master); osc.start();
       this.loops.siren = { g: sg, osc };
+      // 말벌 날갯짓 소리
+      const bo = c.createOscillator(); bo.type = 'sawtooth'; bo.frequency.value = 210;
+      const bf = c.createBiquadFilter(); bf.type = 'bandpass'; bf.frequency.value = 420; bf.Q.value = 2;
+      const bg = c.createGain(); bg.gain.value = 0;
+      bo.connect(bf); bf.connect(bg); bg.connect(this.master); bo.start();
+      this.loops.buzz = { g: bg, osc: bo };
     } catch (e) { this.ctx = null; }
   }
 
@@ -65,6 +71,7 @@ export class Sfx {
   click() { this.tone(520, 0.05, 'square', 0.06); }
   hurt() { this.tone(120, 0.18, 'sawtooth', 0.2, -40); }
   alarm() { this.tone(1500, 0.09, 'square', 0.07); }
+  thud() { this.tone(64, 0.4, 'sine', 0.4, -28); this.pop(); this.pop(); }
   levelUp() { [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => this.tone(f, 0.2, 'triangle', 0.18), i * 120)); }
 
   pop() {
@@ -97,6 +104,8 @@ export class Sfx {
     const lp = this.loops.siren;
     if (lp) lp.osc.frequency.setTargetAtTime(760 + 330 * Math.sin(this.t * 2.6), this.ctx.currentTime, 0.03);
     this.level('siren', st.siren ? 0.07 : 0);
+    if (this.loops.buzz) this.loops.buzz.osc.frequency.setTargetAtTime(200 + 30 * Math.sin(this.t * 23), this.ctx.currentTime, 0.02);
+    this.level('buzz', Math.min(0.09, (st.buzz || 0) * 0.09));
     this.level('water', st.water || 0);
     this.level('powder', st.powder || 0);
     this.level('fire', Math.min(0.32, (st.fire || 0) * 0.32));

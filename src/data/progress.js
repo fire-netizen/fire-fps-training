@@ -15,12 +15,15 @@ export class Progress {
     this.exp = 0;
     this.missions = {}; // id -> { done, best, stars }
     this.gearDone = false;
+    this.stamina = null; // 기력(=체력). null이면 최대치. 시나리오 후 자동 회복 없음 — 고깃집 식사로만 회복
   }
 
   get level() { return levelFromExp(this.exp); }
   get rank() { return RANKS[this.level - 1]; }
   get expInLevel() { const lv = this.level; return this.exp - LEVEL_EXP[lv - 1]; }
   get expToNext() { const lv = this.level; return lv >= LEVEL_EXP.length ? 0 : LEVEL_EXP[lv] - LEVEL_EXP[lv - 1]; }
+  get hp() { return this.stamina == null ? this.maxHp : Math.max(0, Math.min(this.maxHp, this.stamina)); }
+  setStamina(v) { this.stamina = Math.max(0, Math.min(this.maxHp, v)); this.save(); }
   get maxHp() { return 100 + 10 * (this.level - 1); }
   get airEff() { return 1 + 0.08 * (this.level - 1); } // 공기 소모 감소
   get waterEff() { return 1 + 0.06 * (this.level - 1); } // 방수 효율
@@ -36,11 +39,11 @@ export class Progress {
   }
 
   save() {
-    try { localStorage.setItem(KEY, JSON.stringify({ name: this.name, exp: this.exp, missions: this.missions, gearDone: this.gearDone })); } catch (e) { /* 저장 불가 환경 */ }
+    try { localStorage.setItem(KEY, JSON.stringify({ name: this.name, exp: this.exp, missions: this.missions, gearDone: this.gearDone, stamina: this.stamina })); } catch (e) { /* 저장 불가 환경 */ }
   }
 
   reset(name) {
-    this.name = name || '김소방'; this.exp = 0; this.missions = {}; this.gearDone = false; this.save();
+    this.name = name || '김소방'; this.exp = 0; this.missions = {}; this.gearDone = false; this.stamina = null; this.save();
   }
 
   addExp(n) {
