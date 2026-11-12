@@ -173,6 +173,53 @@ class Game {
     this.engine.setDensity(this.engine.zone.density);
   }
 
+  // 자유 운전: 하차(E)할 때까지 소방차를 직접 조종
+  enterTruck() {
+    if (this.player.control) return;
+    this.input.hit.delete("KeyE");
+    this.driver = new TruckDriver(this, { siren: false });
+    this.driver.start();
+    this.ui.setObjectives('소방차 운전', [{ text: 'W/S 가속·후진 · A/D 조향 · Space 브레이크 · R 사이렌', active: true }, { text: '정차 후 E 키로 내리기', active: false }]);
+  }
+
+  // 출동: 플레이어가 소방차를 직접 운전해 현장까지 간다 (G / ⏩ 버튼: 자동 출동)
+  async driveDispatch(def) {
+    const W = this.world, site = LAYOUT[def.site], home = LAYOUT.truckHome;
+    W.showZone('outdoor');
+    this.fx.clearAll();
+    this.engine.setZone('outdoor');
+    W.placeTruck(home[0], home[1], 0);
+    this.player.setGear({ ...FULL_GEAR });
+    const tgt = new THREE.Vector3(site.truck[0], 0, site.truck[1]);
+    this.driveTarget = { pos: tgt, label: '출동 현장' };
+    this.ui.setObjectives('출동 중', [{ text: `🚒 「${def.title}」 현장까지 소방차를 운전하세요`, active: true }, { text: '길을 모르면 화면의 현장 표시를 따라가세요 · G: 자동 출동', active: false }]);
+    this.ui.setPass(null);
+    const how = await new Promise((res) => {
+      this.driver = new TruckDriver(this, { target: { pos: tgt, radius: 8 }, siren: true, onArrive: res });
+      this.driver.start();
+      this.ui.show(true);
+      this.state = 'play';
+      this.input.active = true;
+      this.input.lock();
+      this.ui.fade(false, 500);
+      this.ui.banner('🚒 출동! 소방차를 운전해 현장으로', 2600);
+    });
+    this.state = 'trans';
+    this.input.active = false;
+    await this.ui.fade(true, 450);
+    this.driveTarget = null;
+    this.ui.show(false);
+    this.driver.stop(false);
+    this.driver = null;
+    this.ui.setMarker(null);
+    this.ui.setPrompt(null);
+    if (how === 'skip') { await this.dispatch(def); return; }
+    W.placeTruck(site.truck[0], site.truck[1], 0);
+    this.player.root.visible = true;
+    this.player.teleport(new THREE.Vector3(site.spawn[0], 0, site.spawn[1]), Math.PI);
+    this.engine.setDensity(this.engine.zone.density);
+  }
+
   async openBoard() {
     this.state = 'modal';
     const id = await this.ui.board(MISSIONS, this.progress);

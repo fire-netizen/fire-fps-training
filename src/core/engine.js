@@ -7,7 +7,10 @@ export const ZONES = {
   smoky: { fog: '#14110f', density: 0.1, hemi: 0.32, sun: 0.0, bg: '#0c0a09', hemiSky: '#6a625a', hemiGround: '#2a2320', exposure: 1.2 },
   lab: { fog: '#26282b', density: 0.010, hemi: 1.0, sun: 0.0, bg: '#1c1e21', hemiSky: '#dfe4ea', hemiGround: '#6a665e', exposure: 1.1 },
   tunnel: { fog: '#050506', density: 0.045, hemi: 0.18, sun: 0.0, bg: '#030304', hemiSky: '#3a4048', hemiGround: '#14120f', exposure: 1.35 },
+<<<<<<< HEAD
   diner: { fog: '#33281e', density: 0.008, hemi: 1.0, sun: 0.0, bg: '#241a12', hemiSky: '#f0dcb8', hemiGround: '#7a5a3a', exposure: 1.1 },
+=======
+>>>>>>> 587d5b8c4728b00f56821c2b200c380a51341726
   shop: { fog: '#2c2824', density: 0.012, hemi: 0.95, sun: 0.0, bg: '#201d1a', hemiSky: '#d9cdb8', hemiGround: '#6a5a48', exposure: 1.1 },
 };
 
