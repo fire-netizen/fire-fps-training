@@ -21,10 +21,7 @@ export const LAYOUT = {
   interiorC: [300, 0, 400],
   interiorD: [600, 0, 400],
   interiorT: [900, 0, 400],
-<<<<<<< HEAD
   interiorR: [1200, 0, 400],
-=======
->>>>>>> 587d5b8c4728b00f56821c2b200c380a51341726
   siteT: { x: 116, z: -34, truck: [100, -3.6], spawn: [108, -9.6] },
 };
 
@@ -46,10 +43,7 @@ export class World {
     this.buildShop();
     this.buildLab();
     this.buildTunnel();
-<<<<<<< HEAD
     buildDiner(this, LAYOUT);
-=======
->>>>>>> 587d5b8c4728b00f56821c2b200c380a51341726
     this.showZone('outdoor');
   }
 
@@ -80,12 +74,8 @@ export class World {
       for (const s of this.solids) {
         if (!s.active) continue;
         const b = s.box;
-<<<<<<< HEAD
         if (b.min.y > pos.y + 1.7) continue;
         if (pos.y > 1.4 && b.max.y < pos.y + 0.15) continue; // 발코니·옥상 등 높은 발판 위에서만 아래 장애물 무시 (점프로는 절대 통과 불가)
-=======
-        if (b.max.y < pos.y + 0.15 || b.min.y > pos.y + 1.7) continue; // 점프 중에는 낮은 장애물 위를 넘음
->>>>>>> 587d5b8c4728b00f56821c2b200c380a51341726
         if (pos.x < b.min.x - r || pos.x > b.max.x + r || pos.z < b.min.z - r || pos.z > b.max.z + r) continue;
         const cx = clamp(pos.x, b.min.x, b.max.x), cz = clamp(pos.z, b.min.z, b.max.z);
         const ddx = pos.x - cx, ddz = pos.z - cz, d2 = ddx * ddx + ddz * ddz;
@@ -126,10 +116,7 @@ export class World {
     this.intC.group.visible = name === 'shop';
     this.intD.group.visible = name === 'lab';
     this.intT.group.visible = name === 'tunnel';
-<<<<<<< HEAD
     this.intR.group.visible = name === 'diner';
-=======
->>>>>>> 587d5b8c4728b00f56821c2b200c380a51341726
     this.engine.setZone(name);
     this.lampSources = name === 'shop' ? this.intC.lamps : name === 'lab' ? this.intD.lamps : name === 'diner' ? this.intR.lamps : [];
   }

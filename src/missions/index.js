@@ -3,10 +3,7 @@ import { ExteriorMission } from './m2-exterior.js';
 import { SmokeMission } from './m3-search.js';
 import { ExtinguishMission } from './m4-extinguish.js';
 import { AgentMission } from './m5-agents.js';
-<<<<<<< HEAD
 import { InspectionMission } from './m10-inspection.js';
-=======
->>>>>>> 587d5b8c4728b00f56821c2b200c380a51341726
 import { LadderRescueMission, RappelMission, TunnelMission, WaspMission } from './m6-special.js';
 
 export const MISSIONS = [
@@ -91,7 +88,6 @@ export const MISSIONS = [
     tip: '스프레이는 벌 쪽을 조준해 Space/클릭(터치: 💨)으로 분사합니다. 부채꼴 안의 벌만 효과가 있어요. 약제가 줄면 소방차에서 보충하세요.',
     create: (G, d) => new WaspMission(G, d),
   },
-<<<<<<< HEAD
   {
     id: 'm10', no: '10', title: '소방시설 점검 — 예방 점검 출동', dispatch: true, site: 'siteC', par: 260,
     summary: '상가 건물의 자동화재탐지설비(감지기·수신기)와 소화기 비치·상태(압력·안전핀·내용연수)를 점검하고 결과를 기록합니다.',
@@ -101,8 +97,6 @@ export const MISSIONS = [
     tip: '소화기마다 제조연도, 압력계(녹색이 정상), 안전핀·봉인을 확인하세요. 분말소화기 내용연수는 10년입니다. 판정이 틀리면 감점됩니다.',
     create: (G, d) => new InspectionMission(G, d),
   },
-=======
->>>>>>> 587d5b8c4728b00f56821c2b200c380a51341726
 ];
 
 export const missionById = (id) => MISSIONS.find((m) => m.id === id);
