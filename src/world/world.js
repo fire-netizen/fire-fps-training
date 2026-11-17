@@ -7,6 +7,7 @@ import {
 import { add, makeBarrier, makeCar, makeCone, makeFireTruck, makeHydrant, makeLamp, makeTree, PROPS_MAT as PM, rbox, std } from './props.js';
 import { buildDiner, buildHospital, buildRestaurant } from './town.js';
 import { canvasTexture, clamp, rand } from '../core/util.js';
+import { buildAlarmRoom } from './alarm-room.js';
 
 export const LAYOUT = {
   spawnHub: [-92, -11.5],
@@ -44,6 +45,7 @@ export class World {
     this.buildLab();
     this.buildTunnel();
     buildDiner(this, LAYOUT);
+    this.alarmRoom = buildAlarmRoom(this);
     this.showZone('outdoor');
   }
 
@@ -117,8 +119,10 @@ export class World {
     this.intD.group.visible = name === 'lab';
     this.intT.group.visible = name === 'tunnel';
     this.intR.group.visible = name === 'diner';
+    this.alarmRoom.group.visible = name === 'alarm';
     this.engine.setZone(name);
     this.lampSources = name === 'shop' ? this.intC.lamps : name === 'lab' ? this.intD.lamps : name === 'diner' ? this.intR.lamps : [];
+    if (name === 'alarm') this.lampSources = this.alarmRoom.lamps;
   }
 
   // ───────── 공통 빌더 ─────────

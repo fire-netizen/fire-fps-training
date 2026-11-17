@@ -1,6 +1,7 @@
 // 119 FIRE HERO — 소방관 미션 RPG (메인 게임 루프)
 import * as THREE from 'three';
 import './style.css';
+import './ui/alarm-lab.css';
 import { Engine } from './core/engine.js';
 import { Input } from './core/input.js';
 import { Sfx } from './core/audio.js';
@@ -198,6 +199,13 @@ class Game {
     this.input.lock();
   }
 
+  toggleView() {
+    if (this.state !== 'play' || this.resolving) return;
+    if (this.player.control) { this.ui.toast('운전·사다리·로프 조작이 끝나면 선택한 시점으로 돌아옵니다', 'info'); return; }
+    const mode = this.camRig.toggle();
+    this.ui.toast(mode === 'first' ? '1인칭 · 가까이 관찰하고 E로 조작하세요' : '3인칭 · 대원과 주변 공간을 함께 확인하세요', 'info');
+  }
+
   // ───────────── 흐름 ─────────────
   async boot() {
     this.engine.setZone('outdoor');
@@ -207,13 +215,14 @@ class Game {
     let saved = new Progress();
     const has = Progress.hasSave() && saved.load();
     const r = await this.ui.title(has, has ? saved.name : '김소방');
-    if (r.mode === 'continue') { this.progress.load(); } else { this.progress.reset(r.name); }
+    if (r.mode === 'continue' || r.mode === 'lab' && has) { this.progress.load(); } else { this.progress.reset(r.name); }
     this.progress.name = r.name; this.progress.save();
     this.ui.close();
     await this.ui.fade(true, 200);
     await this.enterHub();
     this.ui.show(true);
     await this.ui.fade(false, 700);
+    if (r.mode === 'lab') { await this.startMission('m11'); return; }
     await this.ui.talk('김 팀장 (소방위)', [`${this.progress.name} 대원! 자네가 오늘 배치된 신임 소방사로군.`, '여기는 119 안전센터. 출동 지령이 떨어지면 소방차에 올라 화재 현장으로 향한다.', '화면 앞의 출동 상황판(E)에서 임무를 선택하게. 처음에는 보호장비 착용부터다.']);
     this.ui.close();
     if (IS_TOUCH) this.ui.toast('왼쪽 화면 드래그: 이동 · 오른쪽 화면 드래그: 시점 · E 버튼: 상호작용', 'info');
@@ -222,7 +231,7 @@ class Game {
 
   async startMission(id, { skipBrief = false } = {}) {
     const def = missionById(id);
-    if (this.progress.hp < 1) {
+    if (this.progress.hp < 1 && id !== 'm11') {
       this.state = 'modal';
       await this.ui.ask('<div class="talk"><div class="who">기력 고갈</div><p>기력이 0이라 시나리오를 수행할 수 없습니다.</p><p>마을 북쪽의 「소방이네 고깃집」에서 식사를 하고 기력을 회복하세요.</p></div>', [{ label: '확인', primary: true, value: true }]);
       this.ui.close(); this.resume(); return;
@@ -368,7 +377,11 @@ class Game {
     if (!this.mission && this.driveTarget && this.state === 'play') t = { pos: new THREE.Vector3(this.driveTarget.pos.x, 4, this.driveTarget.pos.z), label: this.driveTarget.label };
     if (!t || this.state !== 'play') { this.ui.setMarker(null); return; }
     const v = this.tmp.copy(t.pos).project(this.engine.camera);
-    if (v.z > 1) { this.ui.setMarker(null); return; }
+    if (v.z > 1) {
+      if (this.mission?.training) this.ui.setMarker(innerWidth / 2, innerHeight - 120, '뒤쪽 · ' + t.label, t.pos.distanceTo(this.player.pos));
+      else this.ui.setMarker(null);
+      return;
+    }
     const W = innerWidth, H = innerHeight;
     const x = clamp((v.x * 0.5 + 0.5) * W, 40, W - 40), y = clamp((-v.y * 0.5 + 0.5) * H, 60, H - 70);
     const d = t.pos.distanceTo(this.player.pos);
@@ -405,6 +418,7 @@ class Game {
       if (c.t >= c.dur && !c.finished) { c.finished = true; c.done(); }
     } else if (this.state === 'play') {
       P.update(dt);
+      if (inp.pressed('KeyV')) this.toggleView();
       this.camRig.update(dt, P, inp, { aiming: P.aiming, spray: !!P.spray, aimYaw: P.aimCmd ? P.aimCmd.yaw : 0, aimPitch: P.aimCmd ? P.aimCmd.pitch : 0 });
       if (this.shake > 0) { const k = this.shake; cam.position.x += (Math.random() - 0.5) * k * 0.6; cam.position.y += (Math.random() - 0.5) * k * 0.6; cam.position.z += (Math.random() - 0.5) * k * 0.6; this.shake = Math.max(0, this.shake - dt * 1.8); }
       this.mission && this.mission.tick(dt);

@@ -130,7 +130,81 @@ export class Human {
     this.tool = null;
 
     this._legs(); this._torso(); this._arms(); this._head(); this._gear(); this._tools(); this._rig();
+    if (o.detailed) this._detail();
     this.setGear({});
+  }
+
+  // Player/display quality pass; joint hierarchy and all existing animations are preserved.
+  _detail() {
+    const sp=this.spine, hd=this.head;
+    if (!MAT.coat.bumpMap) {
+      const weave=canvasTexture(THREE,256,256,(c,w,h)=>{
+        c.fillStyle='#888';c.fillRect(0,0,w,h);
+        for(let i=0;i<w;i+=4){c.fillStyle='#9c9c9c';c.fillRect(i,0,1,h);c.fillStyle='#737373';c.fillRect(0,i,w,1);}
+      });
+      weave.wrapS=weave.wrapT=THREE.RepeatWrapping;weave.repeat.set(5,5);
+      MAT.coat.bumpMap=weave;MAT.coat.bumpScale=.0018;MAT.coat.needsUpdate=true;
+    }
+    const stitch=std('#66718a',.95), seam=std('#1e2940',.95), hardware=std('#8a949b',.32,.75);
+    const addGear=(key,parent,geo,mat,x,y,z,o={})=>{const mesh=add(parent,geo,mat,x,y,z,o);this.gearG[key].push(mesh);return mesh;};
+    // A single tailored shell replaces stacked torso capsules and covers their exposed joins.
+    for(const mesh of [...this.gearG.coat]){
+      if(mesh.parent===sp && (mesh.geometry.type==='CapsuleGeometry'||mesh.geometry.type==='CylinderGeometry'&&mesh.position.y===-.03)){
+        sp.remove(mesh);this.gearG.coat.splice(this.gearG.coat.indexOf(mesh),1);mesh.geometry.dispose();
+      }
+    }
+    const profile=[[-.13,.218],[-.1,.221],[.02,.206],[.18,.195],[.36,.213],[.46,.224],[.51,.2],[.54,.13]].map(([y,r])=>new THREE.Vector2(r,y));
+    addGear('coat',sp,new THREE.LatheGeometry(profile,40),MAT.coat,0,0,0,{s:[1.13,1,.83]});
+    addGear('coat',sp,rbox(.075,.54,.028,.008),seam,0,.25,.181);
+    for(const sx of [-1,1]){
+      addGear('coat',sp,rbox(.125,.115,.034,.012),MAT.coat,sx*.125,.365,.177);
+      addGear('coat',sp,rbox(.131,.028,.045,.006),seam,sx*.125,.411,.191);
+      addGear('coat',sp,rbox(.125,.003,.004,.001),stitch,sx*.125,.337,.197);
+      addGear('coat',sp,rbox(.13,.14,.035,.01),MAT.coat,sx*.13,.04,.166);
+      addGear('coat',sp,rbox(.134,.028,.045,.006),seam,sx*.13,.1,.183);
+      addGear('coat',sp,rbox(.005,.13,.004,.001),stitch,sx*.185,.04,.186);
+      addGear('coat',sp,rbox(.008,.43,.007,.002),stitch,sx*.197,.265,.116,{rz:sx*.03});
+      for(const y of [.15,.28,.48])addGear('coat',sp,sphere(.009,8,6),hardware,sx*.025,y,.201);
+    }
+    const patch=canvasTexture(THREE,256,128,(c,w,h)=>{c.fillStyle='#e6dfc5';c.fillRect(0,0,w,h);c.strokeStyle='#69717a';c.lineWidth=5;c.strokeRect(5,5,w-10,h-10);c.fillStyle='#24344b';c.textAlign='center';c.font='bold 36px sans-serif';c.fillText('FIRE RESCUE',w/2,55);c.font='bold 30px sans-serif';c.fillText('119',w/2,100);});
+    const badge=addGear('coat',sp,new THREE.PlaneGeometry(.105,.052),new THREE.MeshStandardMaterial({map:patch,roughness:.9}),.126,.365,.198);
+    badge.renderOrder=1;
+    const back=addGear('coat',sp,new THREE.PlaneGeometry(.25,.08),new THREE.MeshStandardMaterial({map:patch,roughness:.9}),0,.4,-.185,{ry:Math.PI});
+    // Sleeve/elbow coverage, stitched reinforcement, segmented gloved fingers and boot tread.
+    for(const [name,sx] of [['R',-1],['L',1]]){
+      const {sh,el,wr}=this.arms[name],{hip,knee,ankle}=this.legs[name];
+      addGear('coat',el,sphere(.065,18,12),MAT.coat,0,.006,0,{s:[1,1.1,1]});
+      addGear('coat',el,rbox(.08,.11,.016,.012),seam,0,-.025,-.052);
+      for(const y of [-.07,-.13])addGear('coat',el,new THREE.TorusGeometry(.058,.0035,5,18),seam,0,y,0,{rx:Math.PI/2});
+      addGear('coat',sh,rbox(.052,.065,.012,.007),MAT.silver,sx*.068,-.09,.015,{ry:sx*Math.PI/2});
+      addGear('pants',hip,rbox(.075,.14,.027,.012),MAT.coat,sx*.092,-.17,.012,{ry:sx*Math.PI/2});
+      addGear('pants',knee,rbox(.105,.105,.024,.012),seam,0,-.006,.083);
+      for(const y of [-.03,.005,.04])addGear('pants',knee,rbox(.085,.005,.005,.002),stitch,0,y,.097);
+      for(let f=0;f<4;f++){
+        addGear('gloves',wr,cap(.0095,.049,8),MAT.glove,(f-1.5)*.019,-.13, .016+Math.sin(f)*.002,{rx:.12});
+        addGear('gloves',wr,sphere(.011,8,6),seam,(f-1.5)*.019,-.088,.041,{s:[1,.8,.4]});
+      }
+      addGear('gloves',wr,rbox(.07,.035,.012,.006),seam,0,-.014,.054);
+      addGear('boots',ankle,rbox(.105,.025,.1,.012),seam,0,-.02,.16);
+      for(let i=0;i<6;i++)addGear('boots',ankle,rbox(.123,.012,.017,.003),MAT.rubber,0,-.087,-.055+i*.044);
+      // Chin straps end below the ears; they are hidden when the helmet is removed.
+      addGear('helmet',hd,rbox(.009,.115,.012,.003),MAT.helmetDark,sx*.085,-.075,.013,{rz:sx*-.3});
+    }
+    addGear('helmet',hd,rbox(.12,.012,.023,.005),MAT.helmetDark,0,-.125,.035);
+    addGear('helmet',hd,rbox(.03,.021,.018,.004),hardware,.055,-.115,.042);
+    for(const sx of [-1,1])addGear('helmet',hd,rbox(.018,.024,.09,.005),MAT.reflective,sx*.115,.071,-.006,{rz:sx*-.24});
+    // Pressure gauge and connection details are attached to the SCBA parent so gear visibility stays correct.
+    const pack=this.gearG.scba[0];
+    const gauge=add(pack,new THREE.CylinderGeometry(.033,.033,.018,24),hardware,-.135,.32,.16,{rx:Math.PI/2});
+    const dial=canvasTexture(THREE,128,128,(c,w,h)=>{c.fillStyle='#e4dfca';c.fillRect(0,0,w,h);c.strokeStyle='#253a3b';c.lineWidth=5;c.beginPath();c.arc(64,64,48,0,Math.PI*2);c.stroke();c.strokeStyle='#2a8b5d';c.lineWidth=10;c.beginPath();c.arc(64,64,37,-2.4,-.4);c.stroke();c.strokeStyle='#222';c.lineWidth=4;c.beginPath();c.moveTo(64,64);c.lineTo(85,35);c.stroke();});
+    add(pack,new THREE.CircleGeometry(.027,24),new THREE.MeshStandardMaterial({map:dial,roughness:.4}),-.135,.32,.172);
+    for(const sx of [-1,1])add(pack,rbox(.045,.04,.025,.008),hardware,sx*.14,.19,.136);
+    add(pack,new THREE.CylinderGeometry(.032,.032,.018,20),MAT.black,.044,.64,-.26,{rz:Math.PI/2});
+    // Subtle facial planes, eyelids and ear detail (no externally generated likeness).
+    for(const sx of [-1,1]){
+      add(hd,rbox(.032,.003,.006,.001),this.skinMat,sx*.035,.028,.096);
+      add(hd,sphere(.011,10,8),std('#a87659'),sx*.099,.002,.002,{s:[.3,1,.7]});
+    }
   }
 
   // ───────────────────── 모델링 ─────────────────────

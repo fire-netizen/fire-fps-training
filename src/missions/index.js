@@ -1,4 +1,5 @@
 import { GearMission } from './m1-gear.js';
+import { AlarmLabMission } from './m11-alarm-lab.js';
 import { ExteriorMission } from './m2-exterior.js';
 import { SmokeMission } from './m3-search.js';
 import { ExtinguishMission } from './m4-extinguish.js';
@@ -7,6 +8,15 @@ import { InspectionMission } from './m10-inspection.js';
 import { LadderRescueMission, RappelMission, TunnelMission, WaspMission } from './m6-special.js';
 
 export const MISSIONS = [
+  {
+    id: 'm11', no: 'LAB', title: '경보설비 실습실 — 신호 추적과 정상 복구', dispatch: false, par: 900,
+    summary: '감지기·수신기·경보장치를 직접 살펴보고, 음향 미작동 원인을 찾아 조치·재시험·복구합니다. V 키로 1·3인칭 전환.',
+    goal: '시험 준비 · 입력과 출력 구분 · 이상 원인 추적 · 재시험 · 정상 복귀',
+    call: ['소방안전관리과 경보설비 기초 실습입니다. 실제 화재가 없는 독립 교육 회로를 사용합니다.', '1구역의 연기감지기 시험 후 수신기와 현장 경보 반응을 각각 확인하세요.', '수신기·장치 앞에서 E: 정밀 조작 / V: 1·3인칭 전환. 실제 장비의 조작은 해당 설명서와 점검 절차를 따릅니다.'],
+    objectives: ['기록대에서 시험 준비 확인', '올바른 도구로 감지기 시험 후 수신·출력 반응 확인', '원인 조치 → 복구 → 재시험', '정상 감시 복귀 확인 후 점검 기록 제출'],
+    tip: '벽면 표지 01은 감지기, 02는 수신기, 03은 경보장치입니다. 입구 쪽 점검 기록대에서 시작하세요. 이 실습은 시간보다 정확성을 평가합니다.',
+    create: (G,d) => new AlarmLabMission(G,d),
+  },
   {
     id: 'm1', no: '01', title: '출동 준비 — 보호장비 착용', dispatch: false, par: 110,
     summary: '방화복·두건·공기호흡기·헬멧·장갑을 올바른 순서로 착용하고 동료와 상호 점검합니다.',

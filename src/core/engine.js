@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { IS_TOUCH } from './device.js';
 
 export const ZONES = {
+  alarm: { fog: '#a8b9b7', density: .002, hemi: 1.65, sun: 0, bg: '#d3dfdb', hemiSky: '#e4f0ed', hemiGround: '#687d7d', exposure: 1.15 },
   outdoor: { fog: '#c7a58c', density: 0.0072, hemi: 1.25, sun: 2.7, bg: '#c7a58c', hemiSky: '#a9bfe0', hemiGround: '#5a4a3c', exposure: 1.05 },
   smoky: { fog: '#14110f', density: 0.1, hemi: 0.32, sun: 0.0, bg: '#0c0a09', hemiSky: '#6a625a', hemiGround: '#2a2320', exposure: 1.2 },
   lab: { fog: '#26282b', density: 0.010, hemi: 1.0, sun: 0.0, bg: '#1c1e21', hemiSky: '#dfe4ea', hemiGround: '#6a665e', exposure: 1.1 },

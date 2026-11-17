@@ -20,6 +20,7 @@ export class TouchControls {
       <div class="t-lookzone"></div>
       <button class="t-btn t-pause" data-act="pause" aria-label="일시정지">⏸</button>
       <div class="t-tools">
+        <button class="t-btn t-sm" data-tool="V">V<small>시점</small></button>
         <button class="t-btn t-sm" data-tool="1">1<small>관창</small></button>
         <button class="t-btn t-sm" data-tool="2">2<small>소화기</small></button>
         <button class="t-btn t-sm" data-tool="T">T<small>열화상</small></button>
@@ -39,7 +40,7 @@ export class TouchControls {
     this.knob = this.$('.t-knob');
     this.fireBtn = this.$('.t-fire');
     this.useBtn = this.$('.t-e');
-    this.toolBtns = [...root.querySelectorAll('[data-tool]')];
+    this.toolBtns = [...root.querySelectorAll('[data-tool]:not([data-tool="V"])')];
 
     const joyZone = this.$('.t-joyzone'), lookZone = this.$('.t-lookzone');
     joyZone.addEventListener('pointerdown', (e) => this.joyDown(e));
@@ -70,7 +71,8 @@ export class TouchControls {
     tap(this.lampBtn, () => inp.hit.add('KeyL'));
     tap(this.hintBtn, () => inp.hit.add('KeyH'));
     tap(this.$('[data-act="pause"]'), () => inp.hit.add('Escape'));
-    const code = { 1: 'Digit1', 2: 'Digit2', T: 'KeyT', Q: 'KeyQ' };
+    const code = { 1: 'Digit1', 2: 'Digit2', T: 'KeyT', Q: 'KeyQ', V: 'KeyV' };
+    tap(this.$('[data-tool="V"]'), () => inp.hit.add('KeyV'));
     for (const b of this.toolBtns) tap(b, () => inp.hit.add(code[b.dataset.tool]));
     // 화면이 흔들리거나 선택되는 것 방지
     root.addEventListener('contextmenu', (e) => e.preventDefault());
