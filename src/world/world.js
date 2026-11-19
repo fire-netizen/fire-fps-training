@@ -7,7 +7,6 @@ import {
 import { add, makeBarrier, makeCar, makeCone, makeFireTruck, makeHydrant, makeLamp, makeTree, PROPS_MAT as PM, rbox, std } from './props.js';
 import { buildDiner, buildHospital, buildRestaurant } from './town.js';
 import { canvasTexture, clamp, rand } from '../core/util.js';
-import { buildAlarmRoom } from './alarm-room.js';
 
 export const LAYOUT = {
   spawnHub: [-92, -11.5],
@@ -18,6 +17,9 @@ export const LAYOUT = {
   siteA: { x: 60, z: -26, w: 24, d: 16, floors: 3, floorH: 4, truck: [44, -3.6], spawn: [50, -9.6], hydrant: [76, -9.2] },
   siteB: { x: 172, z: -28, w: 32, d: 18, floors: 5, floorH: 3.1, truck: [156, -3.6], spawn: [160, -9.6], door: [172, -19] },
   siteC: { x: 276, z: -24, w: 22, d: 14, floors: 2, floorH: 4, truck: [260, -3.6], spawn: [268, -9.6], door: [276, -17] },
+  siteD: { x: 228, z: -30, w: 24, d: 16, floors: 10, floorH: 3.1, truck: [212, -3.6], spawn: [220, -9.6] },
+  siteE: { x: 372, z: -28, w: 28, d: 18, floors: 6, floorH: 3.2, truck: [354, -3.6], spawn: [362, -9.6], door: [380, -17], conn: [360, -17.6], hydrant: [346, -9.2] },
+  interiorG: [1500, 0, 400],
   interiorB: [0, 0, 400],
   interiorC: [300, 0, 400],
   interiorD: [600, 0, 400],
@@ -25,6 +27,9 @@ export const LAYOUT = {
   interiorR: [1200, 0, 400],
   siteT: { x: 116, z: -34, truck: [100, -3.6], spawn: [108, -9.6] },
 };
+
+// 남북 방향 보조도로(교차로) x 좌표
+export const ROAD_X = [-64, 30, 92, 142, 200, 252, 318];
 
 export class World {
   constructor(engine) {
@@ -36,7 +41,7 @@ export class World {
     this.tex = { concrete: concreteTex(), asphalt: asphaltTex() };
     this.anisotropy = engine.renderer.capabilities.getMaxAnisotropy();
     this.zone = 'outdoor';
-    this.bounds = { minX: -135, maxX: 345, minZ: -75, maxZ: 62 };
+    this.bounds = { minX: -135, maxX: 440, minZ: -75, maxZ: 62 };
     this.lampSources = []; // 현재 구역의 정적 조명
     this.sites = {};
     this.buildOutdoor();
@@ -44,8 +49,8 @@ export class World {
     this.buildShop();
     this.buildLab();
     this.buildTunnel();
+    this.buildGarage();
     buildDiner(this, LAYOUT);
-    this.alarmRoom = buildAlarmRoom(this);
     this.showZone('outdoor');
   }
 
@@ -119,10 +124,9 @@ export class World {
     this.intD.group.visible = name === 'lab';
     this.intT.group.visible = name === 'tunnel';
     this.intR.group.visible = name === 'diner';
-    this.alarmRoom.group.visible = name === 'alarm';
+    this.intG.group.visible = name === 'garage';
     this.engine.setZone(name);
-    this.lampSources = name === 'shop' ? this.intC.lamps : name === 'lab' ? this.intD.lamps : name === 'diner' ? this.intR.lamps : [];
-    if (name === 'alarm') this.lampSources = this.alarmRoom.lamps;
+    this.lampSources = name === 'shop' ? this.intC.lamps : name === 'lab' ? this.intD.lamps : name === 'diner' ? this.intR.lamps : name === 'garage' ? this.intG.lamps : [];
   }
 
   // ───────── 공통 빌더 ─────────
@@ -186,6 +190,7 @@ export class World {
     const rt = tiled(roadTex(), 960 / 40, 1); rt.anisotropy = this.anisotropy;
     const road = this.mesh(g, new THREE.PlaneGeometry(960, 14), new THREE.MeshStandardMaterial({ map: rt, roughness: 0.92 }), 100, 0.02, 0, { cast: false });
     road.rotation.x = -Math.PI / 2;
+    this.buildRoads(g);
     // 보도
     const conc = tiled(concreteTex(), 960 / 3.2, 1); conc.anisotropy = this.anisotropy;
     const walkMat = new THREE.MeshStandardMaterial({ map: conc, roughness: 0.95 });
@@ -200,27 +205,32 @@ export class World {
     plaza(L.siteB.x, -14.2, 44, 8.2);
     plaza(L.siteC.x, -13.2, 34, 8.2);
     plaza(L.siteT.x, -14.2, 36, 8.2);
+    plaza(L.siteD.x, -14.2, 36, 8.2);
 
     this.buildStation();
     this.buildSiteA();
     this.buildSiteB();
     this.buildSiteC();
+    this.buildSiteD();
+    this.buildSiteE();
     this.buildPortal();
     this.buildCity();
     buildRestaurant(this);
     buildHospital(this);
 
     // 소방차
-    this.truck = makeFireTruck();
-    this.truck.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    this.truck = new THREE.Group();
     g.add(this.truck);
+    this.setTruckType('pump');
     this.truckSolid = this.solid(0, 1.9, 0, 9.2, 3.8, 2.7, 'truck', { water: true });
     this.placeTruck(L.truckHome[0], L.truckHome[1]);
 
     // 가로수 / 가로등 / 승용차
-    for (let x = -130; x < 340; x += 18) {
+    const nearSt = (x, m = 8) => ROAD_X.some((sx) => Math.abs(x - sx) < m);
+    for (let x = -130; x < 430; x += 18) {
       for (const s of [-1, 1]) {
-        if (s < 0 && ((x > -125 && x < -70) || (x > 36 && x < 84) || (x > 150 && x < 200) || (x > 256 && x < 298))) continue;
+        if (nearSt(x, 9)) continue;
+        if (s < 0 && ((x > -125 && x < -70) || (x > 36 && x < 84) || (x > 150 && x < 200) || (x > 256 && x < 298) || (x > 212 && x < 244) || (x > 356 && x < 392))) continue;
         const t = makeTree(rand(0.9, 1.25));
         t.position.set(x + rand(-2, 2), 0.2, s * 11.5);
         t.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
@@ -228,7 +238,8 @@ export class World {
         this.solid(t.position.x, 1, t.position.z, 0.7, 2, 0.7, 'tree', { water: false, view: false });
       }
     }
-    for (let x = -120; x < 340; x += 32) for (const s of [-1, 1]) {
+    for (let x = -120; x < 430; x += 32) for (const s of [-1, 1]) {
+      if (nearSt(x, 7)) continue;
       const l = makeLamp();
       l.position.set(x, 0.2, s * 9.7);
       if (s > 0) l.rotation.y = Math.PI;
@@ -237,7 +248,7 @@ export class World {
       this.solid(x, 2.5, s * 9.7, 0.5, 5, 0.5, 'lamp', { water: false, view: false });
     }
     const carCols = ['#8aa3b8', '#c8c8c4', '#3e4a5a', '#a23a32', '#d9d4c6', '#4b6a52'];
-    const parked = [[-60, 5], [-34, 5], [8, 5], [100, 5], [134, 5], [210, 5], [232, 5], [300, 5]];
+    const parked = [[-48, 5], [-34, 5], [8, 5], [108, 5], [126, 5], [214, 5], [232, 5], [296, 5], [338, 5], [402, 5]];
     parked.forEach(([x, z], i) => {
       const c = makeCar(carCols[i % carCols.length]);
       c.position.set(x, 0, z);
@@ -260,6 +271,58 @@ export class World {
     // 경계 테이프(난간)·안전콘: 통과하지 못하고 양 끝으로 돌아가야 함 (물·시선은 통과)
     this.solid(L.siteA.x, 0.6, -9.8, 22, 1.2, 0.5, 'barrier', { water: false, view: false });
     for (const dx of [-14, 14]) { const c = makeCone(); c.position.set(L.siteA.x + dx, 0.1, -9.3); g.add(c); this.solid(L.siteA.x + dx, 0.4, -9.3, 0.5, 0.8, 0.5, 'cone', { water: false, view: false }); }
+  }
+
+  // 도로망: 주도로(동서) + 남·북 보조도로(동서) + 남북 교차도로 7개 · 횡단보도 · 정지선
+  buildRoads(g) {
+    const asph = tiled(asphaltTex(), 60, 2); asph.anisotropy = this.anisotropy;
+    const asMat = new THREE.MeshStandardMaterial({ map: asph, roughness: 0.93 });
+    const strip = (cx, cz, w, d, mat, y = 0.022, rotY = 0) => {
+      const m = this.mesh(g, new THREE.PlaneGeometry(w, d), mat, cx, y, cz, { cast: false });
+      m.rotation.x = -Math.PI / 2; if (rotY) m.rotation.z = rotY; return m;
+    };
+    // 보조도로(남 z=24, 북 z=-52): 가운데 점선은 따로 그림
+    for (const rz of [24, -52]) strip(100, rz, 960, 10, asMat, 0.021);
+    // 교차도로: 주도로·보조도로 사이 구간만 (중앙선 겹침 방지)
+    const crossMat = (len) => { const t = tiled(roadTex(), len / 40, 1); t.anisotropy = this.anisotropy; return new THREE.MeshStandardMaterial({ map: t, roughness: 0.92 }); };
+    for (const sx of ROAD_X) {
+      for (const [z0, z1] of [[-47, -7], [7, 19]]) {
+        const len = z1 - z0;
+        const grp = new THREE.Group(); grp.position.set(sx, 0.023, (z0 + z1) / 2); grp.rotation.y = Math.PI / 2; g.add(grp);
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(len, 12), crossMat(len)); m.rotation.x = -Math.PI / 2; m.receiveShadow = true; grp.add(m);
+      }
+      // 교차 구간 보도(연석)
+      const walk = new THREE.MeshStandardMaterial({ color: '#9c9a94', roughness: 0.95 });
+      for (const s of [-1, 1]) {
+        this.box(g, 1.6, 0.2, 40, sx + s * 6.8, 0.1, -27, walk, { cast: false });
+        this.box(g, 1.6, 0.2, 12, sx + s * 6.8, 0.1, 13, walk, { cast: false });
+      }
+      // 횡단보도(주도로) + 정지선
+      const white = new THREE.MeshStandardMaterial({ color: '#ececec', roughness: 0.8 });
+      for (const side of [-1, 1]) {
+        const cx = sx + side * 8.4;
+        for (let i = 0; i < 9; i++) strip(cx, -5.2 + i * 1.3, 3, 0.65, white, 0.03);
+        strip(sx + side * 11.6, side * 3.4, 0.35, 6.4, white, 0.03);
+      }
+      // 보조도로 횡단보도
+      for (let i = 0; i < 8; i++) for (const rz of [24, -52]) strip(sx - 4.5 + i * 1.3, rz + 6.2, 0.65, 2.6, white, 0.03);
+    }
+    // 보조도로 가운데 노란 점선
+    const yel = new THREE.MeshStandardMaterial({ color: '#e6bf2a', roughness: 0.8 });
+    for (const rz of [24, -52]) for (let x = -130; x < 440; x += 6) {
+      if (ROAD_X.some((sx) => Math.abs(x - sx) < 7)) continue;
+      strip(x, rz, 2.6, 0.18, yel, 0.03);
+    }
+    // 도로 표지(방향 표지판)
+    const sign = (x, z, t) => {
+      const grp = new THREE.Group(); grp.position.set(x, 0, z); g.add(grp);
+      this.box(grp, 0.12, 3.6, 0.12, 0, 1.8, 0, PM.grey, { cast: false });
+      this.box(grp, 2.4, 0.8, 0.08, 0, 3.7, 0, new THREE.MeshStandardMaterial({ map: labelTexture(t, { w: 480, h: 160, bg: '#1d6b3a', fg: '#fff', font: 'bold 54px sans-serif' }), roughness: 0.6 }), { cast: false });
+    };
+    sign(-64 + 9, -8.4, '← 소방서 · 중앙로');
+    sign(142 + 9, -8.4, '터널 방면 →');
+    sign(252 + 9, -8.4, '화재현장 구역 →');
+    sign(318 + 9, 8.4, '주차타워 단지 →');
   }
 
   buildStation() {
@@ -380,19 +443,78 @@ export class World {
     this.doorC = new THREE.Vector3(C.x, 0, front + 1.6);
   }
 
+  // 10층 오피스텔 — 완강기 탈출 시나리오 (층수는 3~10층 무작위)
+  buildSiteD() {
+    const g = this.out, D = LAYOUT.siteD;
+    const b = this.building({ x: D.x, z: D.z, w: D.w, d: D.d, floors: D.floors, floorH: D.floorH, wall: '#b4b8bc', variant: 1 });
+    this.siteD = b;
+    const front = D.z + D.d / 2;
+    this.box(g, 3.2, 3.0, 0.4, D.x, 1.5, front + 0.1, std('#20282e', 0.5, 0.2));
+    this.box(g, 2.4, 2.6, 0.12, D.x, 1.3, front + 0.34, std('#6f93aa', 0.1, 0.6, { emissive: '#e8c068', emissiveIntensity: 0.25 }));
+    this.box(g, 9, 1.0, 0.2, D.x, 4.2, front + 0.2, new THREE.MeshStandardMaterial({ map: labelTexture('중앙 오피스텔', { w: 640, h: 96, bg: '#33414f', fg: '#fff', font: 'bold 50px sans-serif' }), roughness: 0.5 }));
+    this.doorD = new THREE.Vector3(D.x, 0, front + 1.6);
+  }
+
+  // 6층 공동주택 + 지하주차장 (송수구 · 진입 경사로) — 지하주차장 화재 시나리오
+  buildSiteE() {
+    const g = this.out, E = LAYOUT.siteE;
+    const b = this.building({ x: E.x, z: E.z, w: E.w, d: E.d, floors: E.floors, floorH: E.floorH, wall: '#c3b9a8', variant: 0 });
+    this.siteE = b;
+    const front = E.z + E.d / 2; // -19
+    this.box(g, 10, 1.0, 0.2, E.x - 4, 4.6, front + 0.2, new THREE.MeshStandardMaterial({ map: labelTexture('푸른마을 아파트 3단지', { w: 720, h: 96, bg: '#274a2f', fg: '#fff', font: 'bold 46px sans-serif' }), roughness: 0.5 }));
+    // 지하주차장 진입 경사로 (오른쪽 끝)
+    const rx = E.door[0], rz = front;
+    const dark = std('#0b0c0e', 0.9);
+    this.box(g, 7.4, 0.14, 12, rx, 0.07, rz + 6, std('#5d6066', 0.95), { cast: false });
+    for (const sx of [-1, 1]) this.box(g, 0.5, 1.3, 12, rx + sx * 3.9, 0.65, rz + 6, std('#a9a79f', 0.9), { solid: true, tag: 'rampwall' });
+    this.box(g, 6.6, 3.4, 0.4, rx, 1.7, rz + 0.2, dark, { cast: false });
+    this.box(g, 8.2, 0.8, 0.5, rx, 3.9, rz + 0.4, new THREE.MeshStandardMaterial({ map: labelTexture('지하주차장 B1', { w: 560, h: 96, bg: '#1f3a6b', fg: '#fff', font: 'bold 50px sans-serif' }), roughness: 0.5 }));
+    this.garageDoor = new THREE.Vector3(rx, 0, rz + 3.2);
+    // 스프링클러·연결송수관 송수구 (외벽 하단 · 파랑/빨강 표시)
+    const cx = E.conn[0], cz = E.conn[1] + 0.9;
+    this.box(g, 1.6, 1.0, 0.18, cx, 1.0, front + 0.1, std('#c8281f', 0.5, 0.2), { cast: false });
+    this.box(g, 1.4, 0.3, 0.06, cx, 1.66, front + 0.2, new THREE.MeshStandardMaterial({ map: labelTexture('송수구', { w: 256, h: 96, bg: '#c8281f', fg: '#fff', font: 'bold 56px sans-serif' }), roughness: 0.5 }), { cast: false });
+    for (const dx of [-0.38, 0.38]) {
+      const nz = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.3, 14), std('#c9a23a', 0.35, 0.8));
+      nz.rotation.x = Math.PI / 2; nz.position.set(cx + dx, 0.95, front + 0.38); nz.castShadow = true; g.add(nz);
+    }
+    this.box(g, 1.5, 0.3, 0.06, cx, 0.38, front + 0.2, new THREE.MeshStandardMaterial({ map: labelTexture('스프링클러 송수구', { w: 384, h: 96, bg: '#1f5fb0', fg: '#fff', font: 'bold 40px sans-serif' }), roughness: 0.5 }), { cast: false });
+    this.connPos = new THREE.Vector3(cx, 0, front + 1.2);
+    // 연결송수관(옥내 소화전용) 송수구 — 스프링클러용이 아님(오인 연결 방지 학습용)
+    const dx0 = E.x - 7.5;
+    this.box(g, 1.6, 1.0, 0.18, dx0, 1.0, front + 0.1, std('#1f7a4a', 0.5, 0.2), { cast: false });
+    this.box(g, 1.5, 0.3, 0.06, dx0, 1.66, front + 0.2, new THREE.MeshStandardMaterial({ map: labelTexture('연결송수관 송수구', { w: 384, h: 96, bg: '#1f7a4a', fg: '#fff', font: 'bold 40px sans-serif' }), roughness: 0.5 }), { cast: false });
+    for (const ddx of [-0.38, 0.38]) {
+      const nz2 = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.3, 14), std('#c9a23a', 0.35, 0.8));
+      nz2.rotation.x = Math.PI / 2; nz2.position.set(dx0 + ddx, 0.95, front + 0.38); g.add(nz2);
+    }
+    this.decoyPos = new THREE.Vector3(dx0, 0, front + 1.2);
+    // 소화전(급수원)
+    const hy = makeHydrant(); hy.position.set(E.hydrant[0], 0.2, E.hydrant[1]); g.add(hy);
+    this.solid(hy.position.x, 0.5, hy.position.z, 0.5, 1, 0.5, 'hydrant', { water: false, view: false });
+    this.hydrantE = hy.position.clone();
+    // 배연(배기) 환기구 — 건물 옆 지면에서 연기가 올라오는 곳
+    this.box(g, 3, 0.5, 2, E.x - 4, 0.25, front + 3.6, std('#5a5d62', 0.6, 0.5), { solid: true, tag: 'vent' });
+    for (let i = 0; i < 6; i++) this.box(g, 2.6, 0.04, 0.12, E.x - 4, 0.52, front + 3.0 + i * 0.25, std('#222428', 0.5), { cast: false });
+    this.ventPos = new THREE.Vector3(E.x - 4, 0.6, front + 3.6);
+    this.plazaE = { x: E.x, z: -14.2 };
+    const t = tiled(concreteTex(), 9, 2); t.anisotropy = this.anisotropy;
+    this.box(g, 36, 0.12, 8.2, E.x, 0.06, -14.2, new THREE.MeshStandardMaterial({ map: t, roughness: 0.95 }), { cast: false });
+  }
+
   buildCity() {
     const g = this.out;
     const walls = ['#a99f92', '#8f9aa0', '#b7a791', '#9aa08f', '#b09a94', '#c0bbb0'];
     let x = -150;
     let i = 0;
-    while (x < 360) {
+    while (x < 450) {
       const w = rand(16, 30), d = rand(14, 22), floors = 3 + ((i * 7) % 7);
       this.building({ x: x + w / 2, z: 34 + d / 2 + rand(0, 6), w, d, floors, floorH: 3.4, wall: walls[i % walls.length], variant: i % 3 === 0 ? 1 : 0 });
       x += w + rand(3, 8);
       i++;
     }
     x = -150; i = 0;
-    while (x < 360) {
+    while (x < 450) {
       const w = rand(18, 32), d = rand(14, 22), floors = 4 + ((i * 5) % 9);
       const cx = x + w / 2;
       const skip = (cx > -128 && cx < -70) || (cx > 38 && cx < 86) || (cx > 150 && cx < 194) || (cx > 262 && cx < 292);
@@ -400,6 +522,18 @@ export class World {
       x += w + rand(3, 7);
       i++;
     }
+  }
+
+  // 소방차 종류 교체 (pump | cannon | aerial) — 같은 그룹(위치·방향·참조)을 유지하고 차체 모델만 바꿈
+  setTruckType(type = 'pump') {
+    const T = this.truck;
+    if (T.userData.type === type) return;
+    if (T.userData.model) { T.remove(T.userData.model); }
+    const m = makeFireTruck(type);
+    m.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    T.add(m);
+    Object.assign(T.userData, { model: m, type, flash: m.userData.flash, lights: m.userData.lights, hosePoint: m.userData.hosePoint, size: m.userData.size });
+    if (this.truckSolid) this.placeTruck(T.position.x, T.position.z, T.rotation.y);
   }
 
   placeTruck(x, z, yaw = 0) {
@@ -742,4 +876,98 @@ export class World {
     grp.visible = false;
   }
 
+
+  // ═════════════════ 실내 G: 지하주차장 (시나리오 12) ═════════════════
+  buildGarage() {
+    const grp = new THREE.Group();
+    this.scene.add(grp);
+    const O = LAYOUT.interiorG;
+    const I = (this.intG = { group: grp, O: new THREE.Vector3(...O), lamps: [], cars: [], heads: [] });
+    const wx = (x) => O[0] + x, wz = (z) => O[2] + z;
+    const HW = 18, LEN = 40, H = 3.3;
+    I.p = (x, y, z) => new THREE.Vector3(wx(x), y, wz(z));
+    const floorTex = tiled(concreteTex(), 8, 8); floorTex.anisotropy = 4;
+    const fl = this.mesh(grp, new THREE.PlaneGeometry(HW * 2 + 2, LEN + 4), new THREE.MeshStandardMaterial({ map: floorTex, color: '#8a8a86', roughness: 0.85 }), wx(0), 0.01, wz(LEN / 2), { cast: false });
+    fl.rotation.x = -Math.PI / 2;
+    const wallMat = new THREE.MeshStandardMaterial({ map: tiled(concreteTex(), 10, 1), color: '#a2a29d', roughness: 0.95 });
+    this.box(grp, 0.6, H, LEN + 2, wx(-HW - 0.3), H / 2, wz(LEN / 2), wallMat, { solid: true, tag: 'wall' });
+    this.box(grp, 0.6, H, LEN + 2, wx(HW + 0.3), H / 2, wz(LEN / 2), wallMat, { solid: true, tag: 'wall' });
+    this.box(grp, HW * 2 + 1.2, H, 0.6, wx(0), H / 2, wz(LEN + 0.3), wallMat, { solid: true, tag: 'wall' });
+    this.box(grp, HW * 2 + 1.2, H, 0.6, wx(0), H / 2, wz(-0.4), wallMat, { solid: true, tag: 'wall' });
+    const ce = this.mesh(grp, new THREE.BoxGeometry(HW * 2 + 2, 0.5, LEN + 3), new THREE.MeshStandardMaterial({ color: '#7d7d79', roughness: 0.95 }), wx(0), H + 0.25, wz(LEN / 2));
+    ce.castShadow = false;
+    this.solid(wx(0), H + 0.5, wz(LEN / 2), HW * 2 + 3, 0.6, LEN + 4, 'ceiling');
+    // 기둥 + 주차선 + 안내
+    const pil = new THREE.MeshStandardMaterial({ color: '#a9a9a3', roughness: 0.9 });
+    const line = std('#e8e8e2', 0.8);
+    for (const px of [-9, 9]) for (const pz of [9, 17, 25, 33]) {
+      this.box(grp, 0.7, H, 0.7, wx(px), H / 2, wz(pz), pil, { solid: true, tag: 'pillar' });
+      this.box(grp, 0.72, 0.5, 0.72, wx(px), 0.25, wz(pz), std('#e0b020', 0.7), { cast: false });
+    }
+    for (const x of [-16, -12.5, -9, -5.5, -2, 2, 5.5, 9, 12.5, 16]) for (const z0 of [10, 28]) this.box(grp, 0.12, 0.01, 5, wx(x), 0.025, wz(z0 + 2.5), line, { cast: false });
+    // 스프링클러 배관 + 헤드(작동 중 — 물이 흩뿌려짐)
+    const pipeM = std('#c8281f', 0.45, 0.3), brass = std('#c9a23a', 0.4, 0.7);
+    for (const px of [-12, -6, 0, 6, 12]) this.box(grp, 0.08, 0.08, LEN - 1, wx(px), H - 0.14, wz(LEN / 2), pipeM, { cast: false });
+    for (const pz of [6, 12, 18, 24, 30, 36]) {
+      this.box(grp, 25, 0.06, 0.06, wx(0), H - 0.12, wz(pz), pipeM, { cast: false });
+      for (const px of [-12, -6, 0, 6, 12]) {
+        const hd = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, 0.16, 8), brass); hd.position.set(wx(px), H - 0.36, wz(pz)); grp.add(hd);
+        I.heads.push(new THREE.Vector3(wx(px), H - 0.3, wz(pz)));
+      }
+    }
+    // 조명(형광등) — 연기 속에서도 일부 점등
+    for (const [x, z] of [[-9, 6], [9, 6], [-9, 20], [9, 20], [0, 33], [0, 13]]) {
+      this.box(grp, 1.6, 0.08, 0.3, wx(x), H - 0.06, wz(z), std('#f4f4ea', 0.4, 0, { emissive: '#e8f0ff', emissiveIntensity: 1.6 }), { cast: false });
+      I.lamps.push({ pos: new THREE.Vector3(wx(x), H - 0.7, wz(z)), color: '#dfe8ff', intensity: 9, distance: 15 });
+    }
+    // 주차된 차량(비화재) + 화재 차량 위치
+    const cols = ['#8aa3b8', '#c8c8c4', '#3e4a5a', '#d9d4c6', '#4b6a52', '#7a2b2b'];
+    const stalls = [[-14.2, 12], [-7.2, 12], [3.8, 12], [14.2, 12], [-14.2, 30], [-3.8, 30], [7.2, 30], [14.2, 30], [-7.2, 20]];
+    stalls.forEach(([x, z], i) => {
+      const c = makeCar(cols[i % cols.length]); c.position.set(wx(x), 0, wz(z)); c.rotation.y = Math.PI / 2;
+      c.traverse((o) => { if (o.isMesh) o.castShadow = true; }); grp.add(c);
+      this.solid(wx(x), 0.9, wz(z), 1.9, 1.8, 4.5, 'car', { water: true });
+    });
+    const burn = [[-3.8, 12, '승용차 화재'], [3.8, 20, '전기차 화재'], [-12.2, 30, '승용차 화재']];
+    I.fireSpots = [];
+    burn.forEach(([x, z, label]) => {
+      const c = makeCar('#222428'); c.position.set(wx(x), 0, wz(z)); c.rotation.y = Math.PI / 2;
+      c.traverse((o) => { if (o.isMesh) o.castShadow = true; }); grp.add(c);
+      this.solid(wx(x), 0.9, wz(z), 1.9, 1.8, 4.5, 'car', { water: true });
+      I.fireSpots.push({ pos: I.p(x, 1.0, z), label });
+    });
+    // 제연설비 제어반 (서쪽 벽, 입구 근처)
+    const panel = (px, pz, title, ry) => {
+      const g = new THREE.Group(); g.position.set(wx(px), 0, wz(pz)); g.rotation.y = ry; grp.add(g);
+      const b = new THREE.Mesh(new THREE.BoxGeometry(1.1, 1.5, 0.28), std('#c8281f', 0.5, 0.2)); b.position.set(0, 1.35, 0); g.add(b);
+      const t = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.3), new THREE.MeshStandardMaterial({ map: labelTexture(title, { w: 512, h: 128, bg: '#7a1510', fg: '#fff', font: 'bold 52px sans-serif' }) }));
+      t.position.set(0, 1.9, 0.15); g.add(t);
+      const led = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), new THREE.MeshStandardMaterial({ color: '#ff3b2f', emissive: '#ff3b2f', emissiveIntensity: 1.2 })); led.position.set(0.3, 1.5, 0.15); g.add(led);
+      const sw = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.16, 0.08), std('#2a2c30', 0.5)); sw.position.set(-0.2, 1.3, 0.17); g.add(sw);
+      return { g, led };
+    };
+    const p1 = panel(-HW + 0.35, 4.5, '제연설비 제어반', Math.PI / 2);
+    I.smokePanel = { pos: I.p(-HW + 1.4, 0, 4.5), led: p1.led };
+    const p2 = panel(0, LEN - 0.35, '배연설비 수동기동', Math.PI);
+    I.exhaustPanel = { pos: I.p(0, 0, LEN - 1.5), led: p2.led };
+    // 배연(배기) 덕트 + 팬
+    const duct = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.7, 0.6), std('#8f959b', 0.45, 0.7)); duct.position.set(wx(-8), 2.1, wz(LEN - 0.4)); grp.add(duct);
+    const fan = new THREE.Group(); fan.position.set(wx(-8), 2.1, wz(LEN - 0.78)); grp.add(fan);
+    for (let k = 0; k < 4; k++) { const bl = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.3, 0.04), std('#2a2d31', 0.5)); bl.rotation.z = (k * Math.PI) / 2; bl.position.set(0, 0, 0); fan.add(bl); }
+    I.fan = fan;
+    const dl = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 0.4), new THREE.MeshStandardMaterial({ map: labelTexture('배연설비 · 배기구', { w: 512, h: 96, bg: '#1d4f7a', fg: '#fff', font: 'bold 46px sans-serif' }) })); dl.position.set(wx(-8), 3.0, wz(LEN - 0.7)); dl.rotation.y = Math.PI; grp.add(dl);
+    // 제연 급기구(입구 쪽 천장)
+    const sup = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.5, 0.9), std('#9aa0a6', 0.45, 0.6)); sup.position.set(wx(8), H - 0.3, wz(2.2)); grp.add(sup);
+    const sl = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.3), new THREE.MeshStandardMaterial({ map: labelTexture('제연 급기구', { w: 512, h: 80, bg: '#1d4f7a', fg: '#fff', font: 'bold 42px sans-serif' }) })); sl.position.set(wx(8), H - 0.58, wz(2.2)); sl.rotation.x = Math.PI / 2; grp.add(sl);
+    // 옥내소화전함(동쪽 벽)
+    const hb = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.1, 0.9), std('#c8281f', 0.5, 0.2)); hb.position.set(wx(HW - 0.3), 1.3, wz(5)); grp.add(hb);
+    I.hydrantBox = I.p(HW - 1.4, 0, 5);
+    // 비상구 유도등
+    const em = new THREE.MeshStandardMaterial({ map: labelTexture('비상구 ↓ 지상', { w: 256, h: 96, bg: '#0f7d3d', fg: '#fff', font: 'bold 46px sans-serif' }), emissive: '#14a85a', emissiveIntensity: 1.1 });
+    this.box(grp, 1.4, 0.5, 0.08, wx(0), 2.7, wz(0.1), em, { cast: false });
+    I.spawn = I.p(0, 0, 3.2);
+    I.exit = I.p(0, 0, 1.0);
+    I.len = LEN; I.hw = HW; I.H = H;
+    grp.visible = false;
+  }
 }

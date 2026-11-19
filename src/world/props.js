@@ -31,8 +31,15 @@ const M = {
   rubber: std('#17191b', 0.9),
 };
 
-// 소방 펌프차: 전방 = +X
-export function makeFireTruck() {
+// 소방차 종류 (출동 선택용)
+export const TRUCK_TYPES = {
+  pump: { id: 'pump', name: '펌프차 (일반 소방차)', short: '펌프차', icon: '🚒', desc: '호스를 전개해 직접 방수·소화전 연결·송수에 쓰는 기본 소방차. 소방호스와 인명구조 장비를 싣고 있어 대부분의 현장에 첫 출동합니다.', use: '건물·주택 화재 진압, 실내 인명검색, 송수구 급수' },
+  cannon: { id: 'cannon', name: '방수포 소방차', short: '방수포차', icon: '💦', desc: '지붕에 대용량 방수포(모니터 노즐)를 갖춘 차량. 분당 수천 L를 멀리 쏴 대형·고열 화재를 안전거리에서 냉각합니다.', use: '대형 외부 화재, 화염 분출 건물 외벽 냉각, 위험물·공장 화재' },
+  aerial: { id: 'aerial', name: '고가굴절 소방차', short: '고가굴절차', icon: '🪜', desc: '굴절 붐(관절 사다리)과 바스켓으로 고층·옥상·발코니의 요구조자를 직접 구조하고 높은 곳에 방수합니다.', use: '고층 건물 인명구조, 옥상·발코니 고립, 높은 위치 방수' },
+};
+
+// 소방 펌프차: 전방 = +X  (type: 'pump' | 'cannon' | 'aerial')
+export function makeFireTruck(type = 'pump') {
   const g = new THREE.Group();
   add(g, rbox(8.9, 0.7, 2.4, 0.1), M.grey, 0, 0.85, 0);
   add(g, rbox(5.6, 2.4, 2.5, 0.12), M.red, -1.55, 2.25, 0);
@@ -47,7 +54,7 @@ export function makeFireTruck() {
   add(g, rbox(0.05, 0.35, 1.4, 0.02), M.black, 4.38, 1.55, 0);
   for (const s of [-1, 1]) add(g, new THREE.CylinderGeometry(0.16, 0.16, 0.08, 14), std('#fff6c8', 0.2, 0, { emissive: '#ffe9a0', emissiveIntensity: 0.9 }), 4.4, 1.15, s * 0.95, { rz: Math.PI / 2 });
   // 측면 문구 및 셔터
-  const lab = labelTexture('119 소방', { w: 640, h: 160, bg: '#b4231b', fg: '#fff', font: 'bold 82px sans-serif', stripe: true });
+  const lab = labelTexture(type === 'cannon' ? '119 방수포' : type === 'aerial' ? '119 고가굴절' : '119 소방', { w: 640, h: 160, bg: '#b4231b', fg: '#fff', font: 'bold 82px sans-serif', stripe: true });
   const labMat = new THREE.MeshStandardMaterial({ map: lab, roughness: 0.4, metalness: 0.2 });
   for (const s of [-1, 1]) {
     add(g, new THREE.PlaneGeometry(4.2, 1.05), labMat, -1.4, 2.95, s * 1.262, { ry: s > 0 ? 0 : Math.PI });
@@ -57,9 +64,34 @@ export function makeFireTruck() {
     }
   }
   // 지붕 사다리/경광등
-  add(g, rbox(5.0, 0.07, 0.07, 0.02), M.silver, -1.6, 3.62, 0.4);
-  add(g, rbox(5.0, 0.07, 0.07, 0.02), M.silver, -1.6, 3.62, -0.4);
-  for (let i = 0; i < 11; i++) add(g, rbox(0.05, 0.05, 0.8, 0.01), M.silver, -3.9 + i * 0.46, 3.62, 0);
+  if (type !== 'aerial') {
+    add(g, rbox(5.0, 0.07, 0.07, 0.02), M.silver, -1.6, 3.62, 0.4);
+    add(g, rbox(5.0, 0.07, 0.07, 0.02), M.silver, -1.6, 3.62, -0.4);
+    for (let i = 0; i < 11; i++) add(g, rbox(0.05, 0.05, 0.8, 0.01), M.silver, -3.9 + i * 0.46, 3.62, 0);
+  }
+  if (type === 'cannon') {
+    // 지붕 방수포(모니터): 받침 · 굴절관 · 긴 포신 · 노즐
+    add(g, new THREE.CylinderGeometry(0.34, 0.42, 0.34, 16), M.silver, -0.6, 3.6, 0);
+    add(g, new THREE.CylinderGeometry(0.2, 0.2, 0.7, 12), M.red, -0.6, 4.05, 0);
+    const bar = add(g, new THREE.CylinderGeometry(0.17, 0.2, 2.3, 14), M.silver, 0.45, 4.5, 0, { rz: -Math.PI / 2 + 0.28 });
+    add(g, new THREE.CylinderGeometry(0.24, 0.17, 0.5, 14), M.black, 1.7, 4.88, 0, { rz: -Math.PI / 2 + 0.28 });
+    add(g, rbox(1.4, 0.5, 2.2, 0.1), std('#2b6cb0', 0.5, 0.2), -3.4, 3.55, 0); // 대용량 수조
+    for (const s of [-1, 1]) add(g, new THREE.CylinderGeometry(0.1, 0.1, 0.9, 10), M.silver, -2.0, 3.2, s * 1.2, { rz: Math.PI / 2 });
+  }
+  if (type === 'aerial') {
+    // 굴절 붐(접은 상태) + 회전대 + 바스켓 + 아웃트리거
+    add(g, new THREE.CylinderGeometry(0.75, 0.85, 0.5, 18), M.grey, -2.6, 3.6, 0);
+    add(g, rbox(7.2, 0.42, 0.5, 0.06), M.red, 0.8, 4.1, 0, { rz: 0.0 });
+    add(g, rbox(0.5, 0.5, 0.44, 0.05), M.silver, 4.3, 4.1, 0);
+    add(g, rbox(3.6, 0.32, 0.4, 0.05), M.yellow, 2.4, 4.55, 0);
+    add(g, rbox(1.0, 0.9, 1.1, 0.06), M.white, 3.9, 4.55, 0);
+    add(g, rbox(1.06, 0.06, 1.16, 0.02), M.silver, 3.9, 5.0, 0);
+    for (const sx of [-2.9, 1.9]) for (const s of [-1, 1]) {
+      add(g, rbox(0.14, 0.14, 1.2, 0.03), M.silver, sx, 0.6, s * 1.9);
+      add(g, new THREE.CylinderGeometry(0.28, 0.28, 0.08, 14), M.black, sx, 0.05, s * 2.5);
+      add(g, rbox(0.12, 0.7, 0.12, 0.02), M.silver, sx, 0.4, s * 2.5);
+    }
+  }
   const lbR = add(g, rbox(0.42, 0.2, 0.9, 0.05), std('#ff2a1a', 0.3, 0, { emissive: '#ff2a1a', emissiveIntensity: 1 }), 3.2, 3.5, -0.45);
   const lbB = add(g, rbox(0.42, 0.2, 0.9, 0.05), std('#1f6bff', 0.3, 0, { emissive: '#1f6bff', emissiveIntensity: 1 }), 3.2, 3.5, 0.45);
   // 바퀴
@@ -77,7 +109,8 @@ export function makeFireTruck() {
     lbB.material.emissiveIntensity = a ? 0.15 : 2.2;
   };
   g.userData.hosePoint = new THREE.Vector3(-4.7, 0.9, 0);
-  g.userData.size = { w: 9.0, d: 2.6, h: 3.7 };
+  g.userData.size = type === 'aerial' ? { w: 9.0, d: 2.6, h: 5.2 } : { w: 9.0, d: 2.6, h: 3.7 };
+  g.userData.type = type;
   return g;
 }
 

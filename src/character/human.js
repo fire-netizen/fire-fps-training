@@ -8,16 +8,16 @@ import { canvasTexture, clamp, damp, lerp } from '../core/util.js';
 
 // ───────── 장비 색상 (필요하면 여기서 바꾸세요) ─────────
 export const GEAR_COLORS = {
-  coat: '#27334f', // 방화복
+  coat: '#b39a68', // 방화복 (카키/황갈색)
   reflective: '#d6f53a', // 형광 반사띠
   silver: '#cfd6dd',
-  helmet: '#f3f3ef', // 헬멧
-  helmetTrim: '#c8281f',
+  helmet: '#17181b', // 헬멧 (검정)
+  helmetTrim: '#c9a23a', // 금색 엠블럼
   boots: '#16181b',
-  gloves: '#5b4631',
+  gloves: '#141416',
   hood: '#12151b',
-  tank: '#262b31',
-  tankBand: '#e0a21a',
+  tank: '#c9d0d6',
+  tankBand: '#c8281f',
   brass: '#b8923a',
 };
 
@@ -26,7 +26,9 @@ const std = (color, roughness = 0.8, metalness = 0, extra) =>
 
 const MAT = {
   coat: std(GEAR_COLORS.coat, 0.92),
-  coatDark: std('#141a29', 0.95),
+  coatDark: std('#1d1d1b', 0.95),
+  bootY: std('#cdb81c', 0.55),
+  navyCap: std('#16203a', 0.8),
   reflective: std(GEAR_COLORS.reflective, 0.45, 0.1, { emissive: '#4d6200', emissiveIntensity: 0.55 }),
   silver: std(GEAR_COLORS.silver, 0.35, 0.6),
   helmet: std(GEAR_COLORS.helmet, 0.28, 0.05),
@@ -55,16 +57,42 @@ let emblemTex;
 function emblem() {
   if (emblemTex) return emblemTex;
   emblemTex = canvasTexture(THREE, 128, 128, (g, w, h) => {
-    g.fillStyle = '#c8281f';
+    g.fillStyle = '#c9a23a';
     g.beginPath();
     g.moveTo(14, 10); g.lineTo(w - 14, 10); g.lineTo(w - 14, h * 0.62);
     g.quadraticCurveTo(w / 2, h + 8, 14, h * 0.62); g.closePath(); g.fill();
-    g.lineWidth = 6; g.strokeStyle = '#f2f2f2'; g.stroke();
-    g.fillStyle = '#fff'; g.font = 'bold 50px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.lineWidth = 6; g.strokeStyle = '#8a6c1c'; g.stroke();
+    g.fillStyle = '#1a1408'; g.font = 'bold 50px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText('119', w / 2, h * 0.42);
   });
   return emblemTex;
 }
+
+const _tex = {};
+function patchTex(key, w, h, draw) { return _tex[key] || (_tex[key] = canvasTexture(THREE, w, h, draw)); }
+const patchMat = (map) => new THREE.MeshStandardMaterial({ map, transparent: true, roughness: 0.7 });
+// 가슴 '119' 패치 (붉은 바탕·흰 글씨)
+const tex119 = () => patchTex('119', 128, 64, (g, w, h) => {
+  g.fillStyle = '#c3261d'; g.fillRect(0, 0, w, h); g.strokeStyle = '#f1f1f1'; g.lineWidth = 5; g.strokeRect(3, 3, w - 6, h - 6);
+  g.fillStyle = '#fff'; g.font = 'bold 44px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('119', w / 2, h / 2 + 2);
+});
+// 등 '소방 119' 글자 (남색 패널 위 흰/주황 글씨)
+const texBack = () => patchTex('back', 256, 96, (g, w, h) => {
+  g.clearRect(0, 0, w, h); g.fillStyle = '#f4f1ea'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = 'bold 56px "Noto Sans CJK KR","Malgun Gothic",sans-serif'; g.fillText('소방 119', w / 2, h / 2);
+});
+// 소매 엠블럼 (둥근 방패)
+const texSleeve = () => patchTex('sleeve', 96, 96, (g, w, h) => {
+  g.fillStyle = '#e9e5da'; g.beginPath(); g.arc(w / 2, h / 2, 44, 0, 7); g.fill();
+  g.fillStyle = '#c3261d'; g.beginPath(); g.arc(w / 2, h / 2, 34, 0, 7); g.fill();
+  g.fillStyle = '#fff'; g.font = 'bold 30px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('119', w / 2, h / 2 + 1);
+});
+// 활동모 정면 엠블럼
+const texCap = () => patchTex('cap', 64, 64, (g, w, h) => {
+  g.fillStyle = '#c9a23a'; g.beginPath(); g.arc(w / 2, h / 2, 29, 0, 7); g.fill();
+  g.fillStyle = '#c3261d'; g.beginPath(); g.arc(w / 2, h / 2, 21, 0, 7); g.fill();
+  g.fillStyle = '#fff'; g.font = 'bold 20px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('119', w / 2, h / 2 + 1);
+});
 
 // ───────── 작은 헬퍼 ─────────
 function add(parent, geo, mat, x = 0, y = 0, z = 0, o = {}) {
@@ -78,6 +106,16 @@ function add(parent, geo, mat, x = 0, y = 0, z = 0, o = {}) {
   m.receiveShadow = true;
   parent.add(m);
   return m;
+}
+// 몸판 표면에 '붙어 있는' 무늬: 원래 형상의 일부 면만 골라 1.012배 키워 덮는다 (돌출 부착물이 아님)
+function decalGeo(geo, keep) {
+  const pos = geo.attributes.position, idx = geo.index.array, out = [];
+  for (let i = 0; i < idx.length; i += 3) {
+    const a = idx[i], b = idx[i + 1], c = idx[i + 2];
+    const v = (k) => [pos.getX(k), pos.getY(k), pos.getZ(k)];
+    if (keep(v(a)) && keep(v(b)) && keep(v(c))) out.push(a, b, c);
+  }
+  const g = geo.clone(); g.setIndex(out); return g;
 }
 const grp = (parent, x = 0, y = 0, z = 0) => {
   const g = new THREE.Group();
@@ -108,7 +146,8 @@ export class Human {
     this.pantsMat = std(this.o.pants, 0.9);
     this.shoeMat = std(this.o.shoes, 0.6);
     this.uni = o.shirt === undefined; // 기본 활동복(주황) 여부
-    this.navyMat = std('#1b2339', 0.85); // 활동복 측면 패널·견장
+    this.navyMat = std('#27365e', 0.85); // 활동복 측면 패널·견장
+    this.pocketMat = std('#2d3b66', 0.9);
 
     this.root = new THREE.Group();
     this.root.scale.setScalar(this.o.scale);
@@ -116,7 +155,7 @@ export class Human {
     this.hips = grp(this.body, 0, 0.96, 0);
     this.spine = grp(this.hips);
 
-    this.baseG = { shirt: [], pants: [], shoes: [], hair: [], hands: [] };
+    this.baseG = { shirt: [], pants: [], shoes: [], hair: [], hands: [], cap: [] };
     this.gearG = { pants: [], coat: [], boots: [], hood: [], helmet: [], gloves: [], scba: [], mask: [] };
     this.gear = {};
 
@@ -130,81 +169,7 @@ export class Human {
     this.tool = null;
 
     this._legs(); this._torso(); this._arms(); this._head(); this._gear(); this._tools(); this._rig();
-    if (o.detailed) this._detail();
     this.setGear({});
-  }
-
-  // Player/display quality pass; joint hierarchy and all existing animations are preserved.
-  _detail() {
-    const sp=this.spine, hd=this.head;
-    if (!MAT.coat.bumpMap) {
-      const weave=canvasTexture(THREE,256,256,(c,w,h)=>{
-        c.fillStyle='#888';c.fillRect(0,0,w,h);
-        for(let i=0;i<w;i+=4){c.fillStyle='#9c9c9c';c.fillRect(i,0,1,h);c.fillStyle='#737373';c.fillRect(0,i,w,1);}
-      });
-      weave.wrapS=weave.wrapT=THREE.RepeatWrapping;weave.repeat.set(5,5);
-      MAT.coat.bumpMap=weave;MAT.coat.bumpScale=.0018;MAT.coat.needsUpdate=true;
-    }
-    const stitch=std('#66718a',.95), seam=std('#1e2940',.95), hardware=std('#8a949b',.32,.75);
-    const addGear=(key,parent,geo,mat,x,y,z,o={})=>{const mesh=add(parent,geo,mat,x,y,z,o);this.gearG[key].push(mesh);return mesh;};
-    // A single tailored shell replaces stacked torso capsules and covers their exposed joins.
-    for(const mesh of [...this.gearG.coat]){
-      if(mesh.parent===sp && (mesh.geometry.type==='CapsuleGeometry'||mesh.geometry.type==='CylinderGeometry'&&mesh.position.y===-.03)){
-        sp.remove(mesh);this.gearG.coat.splice(this.gearG.coat.indexOf(mesh),1);mesh.geometry.dispose();
-      }
-    }
-    const profile=[[-.13,.218],[-.1,.221],[.02,.206],[.18,.195],[.36,.213],[.46,.224],[.51,.2],[.54,.13]].map(([y,r])=>new THREE.Vector2(r,y));
-    addGear('coat',sp,new THREE.LatheGeometry(profile,40),MAT.coat,0,0,0,{s:[1.13,1,.83]});
-    addGear('coat',sp,rbox(.075,.54,.028,.008),seam,0,.25,.181);
-    for(const sx of [-1,1]){
-      addGear('coat',sp,rbox(.125,.115,.034,.012),MAT.coat,sx*.125,.365,.177);
-      addGear('coat',sp,rbox(.131,.028,.045,.006),seam,sx*.125,.411,.191);
-      addGear('coat',sp,rbox(.125,.003,.004,.001),stitch,sx*.125,.337,.197);
-      addGear('coat',sp,rbox(.13,.14,.035,.01),MAT.coat,sx*.13,.04,.166);
-      addGear('coat',sp,rbox(.134,.028,.045,.006),seam,sx*.13,.1,.183);
-      addGear('coat',sp,rbox(.005,.13,.004,.001),stitch,sx*.185,.04,.186);
-      addGear('coat',sp,rbox(.008,.43,.007,.002),stitch,sx*.197,.265,.116,{rz:sx*.03});
-      for(const y of [.15,.28,.48])addGear('coat',sp,sphere(.009,8,6),hardware,sx*.025,y,.201);
-    }
-    const patch=canvasTexture(THREE,256,128,(c,w,h)=>{c.fillStyle='#e6dfc5';c.fillRect(0,0,w,h);c.strokeStyle='#69717a';c.lineWidth=5;c.strokeRect(5,5,w-10,h-10);c.fillStyle='#24344b';c.textAlign='center';c.font='bold 36px sans-serif';c.fillText('FIRE RESCUE',w/2,55);c.font='bold 30px sans-serif';c.fillText('119',w/2,100);});
-    const badge=addGear('coat',sp,new THREE.PlaneGeometry(.105,.052),new THREE.MeshStandardMaterial({map:patch,roughness:.9}),.126,.365,.198);
-    badge.renderOrder=1;
-    const back=addGear('coat',sp,new THREE.PlaneGeometry(.25,.08),new THREE.MeshStandardMaterial({map:patch,roughness:.9}),0,.4,-.185,{ry:Math.PI});
-    // Sleeve/elbow coverage, stitched reinforcement, segmented gloved fingers and boot tread.
-    for(const [name,sx] of [['R',-1],['L',1]]){
-      const {sh,el,wr}=this.arms[name],{hip,knee,ankle}=this.legs[name];
-      addGear('coat',el,sphere(.065,18,12),MAT.coat,0,.006,0,{s:[1,1.1,1]});
-      addGear('coat',el,rbox(.08,.11,.016,.012),seam,0,-.025,-.052);
-      for(const y of [-.07,-.13])addGear('coat',el,new THREE.TorusGeometry(.058,.0035,5,18),seam,0,y,0,{rx:Math.PI/2});
-      addGear('coat',sh,rbox(.052,.065,.012,.007),MAT.silver,sx*.068,-.09,.015,{ry:sx*Math.PI/2});
-      addGear('pants',hip,rbox(.075,.14,.027,.012),MAT.coat,sx*.092,-.17,.012,{ry:sx*Math.PI/2});
-      addGear('pants',knee,rbox(.105,.105,.024,.012),seam,0,-.006,.083);
-      for(const y of [-.03,.005,.04])addGear('pants',knee,rbox(.085,.005,.005,.002),stitch,0,y,.097);
-      for(let f=0;f<4;f++){
-        addGear('gloves',wr,cap(.0095,.049,8),MAT.glove,(f-1.5)*.019,-.13, .016+Math.sin(f)*.002,{rx:.12});
-        addGear('gloves',wr,sphere(.011,8,6),seam,(f-1.5)*.019,-.088,.041,{s:[1,.8,.4]});
-      }
-      addGear('gloves',wr,rbox(.07,.035,.012,.006),seam,0,-.014,.054);
-      addGear('boots',ankle,rbox(.105,.025,.1,.012),seam,0,-.02,.16);
-      for(let i=0;i<6;i++)addGear('boots',ankle,rbox(.123,.012,.017,.003),MAT.rubber,0,-.087,-.055+i*.044);
-      // Chin straps end below the ears; they are hidden when the helmet is removed.
-      addGear('helmet',hd,rbox(.009,.115,.012,.003),MAT.helmetDark,sx*.085,-.075,.013,{rz:sx*-.3});
-    }
-    addGear('helmet',hd,rbox(.12,.012,.023,.005),MAT.helmetDark,0,-.125,.035);
-    addGear('helmet',hd,rbox(.03,.021,.018,.004),hardware,.055,-.115,.042);
-    for(const sx of [-1,1])addGear('helmet',hd,rbox(.018,.024,.09,.005),MAT.reflective,sx*.115,.071,-.006,{rz:sx*-.24});
-    // Pressure gauge and connection details are attached to the SCBA parent so gear visibility stays correct.
-    const pack=this.gearG.scba[0];
-    const gauge=add(pack,new THREE.CylinderGeometry(.033,.033,.018,24),hardware,-.135,.32,.16,{rx:Math.PI/2});
-    const dial=canvasTexture(THREE,128,128,(c,w,h)=>{c.fillStyle='#e4dfca';c.fillRect(0,0,w,h);c.strokeStyle='#253a3b';c.lineWidth=5;c.beginPath();c.arc(64,64,48,0,Math.PI*2);c.stroke();c.strokeStyle='#2a8b5d';c.lineWidth=10;c.beginPath();c.arc(64,64,37,-2.4,-.4);c.stroke();c.strokeStyle='#222';c.lineWidth=4;c.beginPath();c.moveTo(64,64);c.lineTo(85,35);c.stroke();});
-    add(pack,new THREE.CircleGeometry(.027,24),new THREE.MeshStandardMaterial({map:dial,roughness:.4}),-.135,.32,.172);
-    for(const sx of [-1,1])add(pack,rbox(.045,.04,.025,.008),hardware,sx*.14,.19,.136);
-    add(pack,new THREE.CylinderGeometry(.032,.032,.018,20),MAT.black,.044,.64,-.26,{rz:Math.PI/2});
-    // Subtle facial planes, eyelids and ear detail (no externally generated likeness).
-    for(const sx of [-1,1]){
-      add(hd,rbox(.032,.003,.006,.001),this.skinMat,sx*.035,.028,.096);
-      add(hd,sphere(.011,10,8),std('#a87659'),sx*.099,.002,.002,{s:[.3,1,.7]});
-    }
   }
 
   // ───────────────────── 모델링 ─────────────────────
@@ -240,20 +205,29 @@ export class Human {
         add(hip, cap(0.078, 0.47), this.pantsMat, 0, -0.225, 0),
         add(knee, cap(0.062, 0.44), this.pantsMat, 0, -0.21, 0),
       );
+      if (this.uni) {
+        this.baseG.pants.push(
+          add(hip, rbox(0.03, 0.13, 0.095, 0.01), this.pocketMat, s * 0.074, -0.2, 0.012),
+          add(hip, rbox(0.032, 0.03, 0.1, 0.008), this.navyMat, s * 0.076, -0.145, 0.012),
+        );
+      }
       this.baseG.shoes.push(add(ankle, rbox(0.1, 0.07, 0.25, 0.03), this.shoeMat, 0, -0.035, 0.05));
       // 방화바지 + 안전화
       const gp = [
         add(hip, cap(0.1, 0.48), MAT.coat, 0, -0.23, 0),
         add(knee, cap(0.084, 0.45), MAT.coat, 0, -0.215, 0),
-        add(knee, sphere(0.092, 16, 12), MAT.coatDark, 0, 0.0, 0.015, { s: [1, 0.9, 1] }), // 무릎 보강
+        add(knee, sphere(0.092, 16, 12), MAT.coatDark, 0, 0.0, 0.02, { s: [1, 1.15, 1.02] }), // 무릎 패드
         add(knee, ring(0.088, 0.045), MAT.reflective, 0, -0.17, 0),
         add(hip, ring(0.106, 0.04), MAT.reflective, 0, -0.27, 0),
+        add(hip, ring(0.107, 0.014), MAT.silver, 0, -0.3, 0),
+        add(knee, ring(0.089, 0.014), MAT.silver, 0, -0.2, 0),
+        add(knee, ring(0.089, 0.014), MAT.silver, 0, -0.355, 0), add(knee, ring(0.088, 0.04), MAT.reflective, 0, -0.33, 0),
       ];
       this.gearG.pants.push(...gp);
       this.gearG.boots.push(
         add(ankle, rbox(0.118, 0.09, 0.29, 0.035), MAT.boot, 0, -0.04, 0.055),
         add(ankle, rbox(0.12, 0.022, 0.3, 0.01), MAT.black, 0, -0.077, 0.055),
-        add(knee, cap(0.092, 0.24), MAT.boot, 0, -0.31, 0),
+        add(knee, cap(0.092, 0.24), MAT.bootY, 0, -0.31, 0),
       );
     }
   }
@@ -268,14 +242,21 @@ export class Human {
       add(sp, cap(0.065, 0.48), this.shirtMat, 0, 0.49, 0, { rz: Math.PI / 2 }),
     );
     if (this.uni) {
-      // 활동복 디자인: 양옆 남색 패널 + 견장 + 가슴 지퍼선
+      // 활동복 디자인: 패치(119·등 글자)만 부착 — 남색 돌출 부착물 없음
+      // 남색 무늬(몸판에 밀착): 어깨 요크 · 가운데 지퍼선 · 목 카라
+      const T = 1.014;
+      const up = [1.2 * T, T, 0.82 * T], lo = [1.18 * T, T, 0.8 * T];
       this.baseG.shirt.push(
-        add(sp, rbox(0.045, 0.62, 0.2, 0.015), this.navyMat, 0.205, 0.27, 0, { rz: -0.04 }),
-        add(sp, rbox(0.045, 0.62, 0.2, 0.015), this.navyMat, -0.205, 0.27, 0, { rz: 0.04 }),
-        add(sp, rbox(0.03, 0.46, 0.012, 0.005), this.navyMat, 0, 0.3, 0.175),
-        add(sp, rbox(0.09, 0.025, 0.07, 0.008), this.navyMat, 0.17, 0.57, 0.01),
-        add(sp, rbox(0.09, 0.025, 0.07, 0.008), this.navyMat, -0.17, 0.57, 0.01),
+        add(sp, decalGeo(cap(0.17, 0.4), (v) => v[1] > 0.1), this.navyMat, 0, 0.37, 0, { s: up, shadow: false }),
+        add(sp, decalGeo(cap(0.17, 0.4, 112), (v) => v[2] > 0 && Math.abs(v[0]) < 0.0098), this.navyMat, 0, 0.37, 0, { s: up, shadow: false }),
+        add(sp, decalGeo(cap(0.15, 0.34, 112), (v) => v[2] > 0 && Math.abs(v[0]) < 0.0088), this.navyMat, 0, 0.15, 0, { s: lo, shadow: false }),
+        add(sp, cap(0.065 * 1.03, 0.48 * 1.0), this.navyMat, 0, 0.49, 0, { rz: Math.PI / 2, shadow: false }),
+        add(sp, new THREE.TorusGeometry(0.088, 0.018, 8, 28), this.navyMat, 0, 0.552, 0.0, { rx: Math.PI / 2, s: [1.2, 1, 0.55], shadow: false }),
       );
+      const p119 = new THREE.Mesh(new THREE.PlaneGeometry(0.075, 0.038), patchMat(tex119()));
+      p119.position.set(0.105, 0.43, 0.1445); p119.rotation.y = 0.12; sp.add(p119); this.baseG.shirt.push(p119);
+      const pBack = new THREE.Mesh(new THREE.PlaneGeometry(0.27, 0.1), patchMat(texBack()));
+      pBack.position.set(0, 0.34, -0.1465); pBack.rotation.y = Math.PI; sp.add(pBack); this.baseG.shirt.push(pBack);
     }
     // 방화복 상의
     this.gearG.coat.push(
@@ -287,6 +268,8 @@ export class Human {
       add(sp, new THREE.CylinderGeometry(0.208, 0.208, 0.04, 32), MAT.reflective, 0, 0.1, 0, { s: [1.2, 1, 0.845] }),
       add(sp, new THREE.CylinderGeometry(0.212, 0.212, 0.012, 32), MAT.silver, 0, 0.1, 0, { s: [1.2, 1, 0.848] }),
       add(sp, new THREE.CylinderGeometry(0.205, 0.205, 0.04, 32), MAT.reflective, 0, 0.29, 0, { s: [1.2, 1, 0.845] }),
+      add(sp, new THREE.CylinderGeometry(0.207, 0.207, 0.012, 32), MAT.silver, 0, 0.255, 0, { s: [1.2, 1, 0.847] }),
+      add(sp, new THREE.CylinderGeometry(0.21, 0.21, 0.012, 32), MAT.silver, 0, 0.066, 0, { s: [1.2, 1, 0.85] }),
       add(sp, new THREE.CylinderGeometry(0.2, 0.226, 0.034, 30), MAT.reflective, 0, -0.1, 0, { s: [1.2, 1, 0.845] }),
       add(sp, rbox(0.035, 0.5, 0.02, 0.008), MAT.coatDark, 0, 0.27, 0.168),
       add(sp, rbox(0.1, 0.085, 0.03, 0.01), MAT.coatDark, 0.12, 0.1, 0.16),
@@ -304,7 +287,18 @@ export class Human {
       const hand = grp(wr, 0, -0.09, 0);
       this.arms[name] = { sh, el, wr, hand };
       // 평상복 소매
-      this.baseG.shirt.push(
+      if (this.uni) {
+        this.baseG.shirt.push(
+          add(sh, cap(0.056, 0.2), this.shirtMat, 0, -0.095, 0), // 어깨는 주황
+          add(sh, cap(0.05, 0.2), this.navyMat, 0, -0.22, 0),
+          add(el, cap(0.046, 0.27), this.navyMat, 0, -0.13, 0),
+          add(el, ring(0.047, 0.03), this.navyMat, 0, -0.245, 0),
+        );
+        if (s > 0) {
+          const pe = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.05), patchMat(texSleeve()));
+          pe.position.set(0.058, -0.1, 0.0); pe.rotation.y = Math.PI / 2; sh.add(pe); this.baseG.shirt.push(pe);
+        }
+      } else this.baseG.shirt.push(
         add(sh, cap(0.054, 0.19), this.shirtMat, 0, -0.095, 0),
         add(sh, cap(0.044, 0.2), this.skinMat, 0, -0.22, 0),
         add(el, cap(0.04, 0.27), this.skinMat, 0, -0.13, 0),
@@ -318,8 +312,10 @@ export class Human {
         add(sh, sphere(0.085, 18, 12), MAT.coat, 0, 0.005, 0, { s: [1.05, 0.95, 1] }),
         add(sh, cap(0.07, 0.31), MAT.coat, 0, -0.145, 0),
         add(sh, ring(0.074, 0.04), MAT.reflective, 0, -0.2, 0),
+        add(sh, ring(0.075, 0.012), MAT.silver, 0, -0.235, 0),
         add(el, cap(0.06, 0.27), MAT.coat, 0, -0.13, 0),
         add(el, ring(0.064, 0.04), MAT.reflective, 0, -0.14, 0),
+        add(el, ring(0.065, 0.012), MAT.silver, 0, -0.175, 0),
         add(el, ring(0.062, 0.05), MAT.coatDark, 0, -0.235, 0),
       );
       this.gearG.gloves.push(
@@ -354,6 +350,15 @@ export class Human {
     if (this.o.longHair) {
       this.baseG.hair.push(add(hd, cap(0.095, 0.26), this.hairMat, 0, -0.1, -0.06, { s: [1, 1, 0.55] }));
     }
+    if (this.uni) {
+      this.baseG.cap.push(
+        add(hd, shell(0.112, [0.94, 1.17, 1.03], 0, Math.PI * 2, 0, Math.PI * 0.47), MAT.navyCap, 0, 0.012, 0),
+        add(hd, new THREE.TorusGeometry(0.108, 0.01, 8, 30), MAT.navyCap, 0, 0.065, 0, { rx: Math.PI / 2, s: [0.96, 1.08, 1] }),
+        add(hd, new THREE.CylinderGeometry(0.1, 0.12, 0.012, 20, 1, false, -1.0, 2.0), MAT.black, 0, 0.05, 0.075, { s: [1, 1, 1.05], rx: 0.1 }),
+      );
+      const ce = new THREE.Mesh(new THREE.PlaneGeometry(0.04, 0.04), patchMat(texCap()));
+      ce.position.set(0, 0.1, 0.1); ce.rotation.x = -0.25; hd.add(ce); this.baseG.cap.push(ce);
+    }
     // 방화두건
     const hoodShell = shell(0.113, [0.93, 1.17, 1.04], Math.PI / 2 + 0.95, Math.PI * 2 - 1.9, 0, Math.PI * 0.8);
     const hoodBand = shell(0.113, [0.93, 1.17, 1.04], 0, Math.PI * 2, Math.PI * 0.26, Math.PI * 0.075);
@@ -371,6 +376,10 @@ export class Human {
       add(hd, new THREE.CylinderGeometry(0.133, 0.15, 0.034, 20, 1, true, -0.85, 1.7), MAT.helmet, 0, 0.03, 0.012, { s: [1, 1, 1.12] }),
       add(hd, rbox(0.03, 0.026, 0.27, 0.01), MAT.helmetDark, 0, 0.152, -0.005),
       add(hd, rbox(0.1, 0.018, 0.016, 0.006), MAT.reflective, 0, 0.092, 0.138, { rx: -0.3 }),
+    );
+    this.gearG.helmet.push(
+      add(hd, rbox(0.03, 0.03, 0.04, 0.008), MAT.black, 0.125, 0.07, 0.04),
+      add(hd, sphere(0.012, 10, 8), std('#fff6c8', 0.2, 0, { emissive: '#ffe9a0', emissiveIntensity: 0.8 }), 0.125, 0.07, 0.062),
     );
     const em = new THREE.Mesh(
       new THREE.PlaneGeometry(0.085, 0.085),
@@ -406,6 +415,10 @@ export class Human {
       add(pack, rbox(0.055, 0.3, 0.018, 0.006), MAT.black, sx * 0.14, 0.4, 0.125);
     }
     add(pack, new THREE.TorusGeometry(0.2, 0.014, 6, 28), MAT.black, 0, 0.02, 0, { rx: Math.PI / 2, s: [1.18, 0.84, 1] });
+    // 가슴에 걸친 면체(게이지 포함)
+    add(pack, new THREE.TorusGeometry(0.05, 0.012, 8, 20), MAT.rubber, 0, 0.3, 0.2, { s: [1, 1.2, 1] });
+    add(pack, shell(0.05, [1, 1.2, 0.6], 0, Math.PI * 2, 0, Math.PI / 2), MAT.glass, 0, 0.3, 0.2, { rx: Math.PI / 2, shadow: false });
+    add(pack, rbox(0.03, 0.03, 0.012, 0.005), MAT.black, 0.1, 0.36, 0.178);
     this.gearG.scba.push(pack);
   }
 
@@ -452,6 +465,7 @@ export class Human {
     show(this.baseG.shoes, !g.boots);
     show(this.baseG.hair, !(g.hood || g.helmet));
     show(this.baseG.hands, !g.gloves);
+    show(this.baseG.cap, this.uni && !(g.hood || g.helmet));
     if (g.hood && !g.coat) this.baseG.shirt.forEach((o) => (o.visible = true));
   }
 

@@ -185,3 +185,9 @@ body.touch .t-hint { right: 150px; bottom: 102px; }
 .board .mlist { overflow-y: auto; min-height: 0; flex: 1 1 auto; padding-right: 4px; touch-action: pan-y; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 @media (max-height: 520px) and (orientation: landscape) { .board { max-height: calc(100vh - 44px); } }
 body.touch #tools { display: none; }
+
+/* ── 스마트폰: E키 안내(프롬프트)를 화면 하단으로 내리고 작게 — 게임 화면을 가리지 않도록 ── */
+body.touch #prompt { bottom: 6px; left: 50%; max-width: 38vw; gap: 6px; padding: 4px 9px; font-size: 10.5px; line-height: 1.25; border-radius: 8px; background: rgba(8, 14, 22, .72); border-width: 1px; z-index: 24; pointer-events: none; }
+body.touch #prompt .pk { width: 17px; height: 17px; border-radius: 5px; font-size: 10px; flex: 0 0 auto; }
+body.touch #prompt .pt { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+body.touch:has(.agentpick:not(.hidden)) #prompt { bottom: 62px; }

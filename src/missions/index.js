@@ -1,22 +1,14 @@
 import { GearMission } from './m1-gear.js';
-import { AlarmLabMission } from './m11-alarm-lab.js';
 import { ExteriorMission } from './m2-exterior.js';
 import { SmokeMission } from './m3-search.js';
 import { ExtinguishMission } from './m4-extinguish.js';
 import { AgentMission } from './m5-agents.js';
 import { InspectionMission } from './m10-inspection.js';
+import { EscapeMission } from './m11-escape.js';
+import { GarageMission } from './m12-garage.js';
 import { LadderRescueMission, RappelMission, TunnelMission, WaspMission } from './m6-special.js';
 
 export const MISSIONS = [
-  {
-    id: 'm11', no: 'LAB', title: '경보설비 실습실 — 신호 추적과 정상 복구', dispatch: false, par: 900,
-    summary: '감지기·수신기·경보장치를 직접 살펴보고, 음향 미작동 원인을 찾아 조치·재시험·복구합니다. V 키로 1·3인칭 전환.',
-    goal: '시험 준비 · 입력과 출력 구분 · 이상 원인 추적 · 재시험 · 정상 복귀',
-    call: ['소방안전관리과 경보설비 기초 실습입니다. 실제 화재가 없는 독립 교육 회로를 사용합니다.', '1구역의 연기감지기 시험 후 수신기와 현장 경보 반응을 각각 확인하세요.', '수신기·장치 앞에서 E: 정밀 조작 / V: 1·3인칭 전환. 실제 장비의 조작은 해당 설명서와 점검 절차를 따릅니다.'],
-    objectives: ['기록대에서 시험 준비 확인', '올바른 도구로 감지기 시험 후 수신·출력 반응 확인', '원인 조치 → 복구 → 재시험', '정상 감시 복귀 확인 후 점검 기록 제출'],
-    tip: '벽면 표지 01은 감지기, 02는 수신기, 03은 경보장치입니다. 입구 쪽 점검 기록대에서 시작하세요. 이 실습은 시간보다 정확성을 평가합니다.',
-    create: (G,d) => new AlarmLabMission(G,d),
-  },
   {
     id: 'm1', no: '01', title: '출동 준비 — 보호장비 착용', dispatch: false, par: 110,
     summary: '방화복·두건·공기호흡기·헬멧·장갑을 올바른 순서로 착용하고 동료와 상호 점검합니다.',
@@ -36,7 +28,7 @@ export const MISSIONS = [
     create: (G, d) => new AgentMission(G, d),
   },
   {
-    id: 'm4', no: '03', title: '초기 소화 — 화재 유형별 대응', dispatch: true, site: 'siteC', par: 150,
+    id: 'm4', no: '03', title: '초기 소화 — 화재 유형별 대응', dispatch: true, trucks: { best: ['pump'], ok: ['cannon'], note: '실내 초기 소화는 호스·소화기를 쓰는 펌프차로 충분합니다. 방수포·고가굴절차는 과합니다.' }, site: 'siteC', par: 150,
     summary: '식당에서 동시에 난 일반·유류·전기 화재. 알맞은 소화수단과 소화기 사용법(PASS)을 익힙니다.',
     goal: '화재 분류(A·B·C) · 소화기 사용법(PASS) · 사거리/자세',
     call: ['[출동 지령] 상가 1층 식당 화재 신고, 주방·분전반·쓰레기통에서 각각 발화.', '건물 안 초기 소화 가능 범위. 화재 유형을 구분해 대응 바람.'],
@@ -45,7 +37,7 @@ export const MISSIONS = [
     create: (G, d) => new ExtinguishMission(G, d),
   },
   {
-    id: 'm2', no: '04', title: '주택 화재 — 외부 진압', dispatch: true, site: 'siteA', par: 170,
+    id: 'm2', no: '04', title: '주택 화재 — 외부 진압', dispatch: true, trucks: { best: ['cannon'], ok: ['pump', 'aerial'], note: '창문마다 화염이 분출하는 외부 화재는 방수포로 안전거리에서 냉각하는 것이 효율적입니다.' }, site: 'siteA', par: 170,
     summary: '화염이 분출하는 3층 건물. 호스를 전개하고 화점의 뿌리를 겨냥해 5곳을 진압합니다.',
     goal: '냉각소화 · 방수 요령 · 용수 관리 · 안전거리',
     call: ['[출동 지령] 3층 연립주택 2·3층 창문에서 화염 분출, 외부로 연소 확대 중.', '인명 피해 없음 확인. 외부 진압 후 지휘관에게 보고 바람.', '진입 금지 — 붕괴·낙하물 위험구역(적색 선) 밖에서 방수할 것.'],
@@ -54,7 +46,7 @@ export const MISSIONS = [
     create: (G, d) => new ExteriorMission(G, d),
   },
   {
-    id: 'm3', no: '05', title: '연기 속 인명검색·구조', dispatch: true, site: 'siteB', par: 190,
+    id: 'm3', no: '05', title: '연기 속 인명검색·구조', dispatch: true, trucks: { best: ['pump'], ok: [], note: '실내 인명검색·구조는 호스와 구조 장비를 갖춘 펌프차가 알맞습니다.' }, site: 'siteB', par: 190,
     summary: '연기가 가득한 공동주택 실내. 수색하고, 뜨거운 문을 안전하게 열어 요구조자를 구조합니다.',
     goal: '낮은 자세 · 문 개방 절차(백드래프트) · 공기 관리 · 구조',
     call: ['[출동 지령] 5층 아파트 2층 세대 화재, 거주자 1명 미확인.', '현관 진입 후 실내 수색 및 인명구조 바람.', '공기호흡기 잔량에 유의하고 복귀 공기를 확보할 것.'],
@@ -63,7 +55,7 @@ export const MISSIONS = [
     create: (G, d) => new SmokeMission(G, d),
   },
   {
-    id: 'm6', no: '06', title: '사다리 구조 — 발코니 요구조자', dispatch: true, site: 'siteA', par: 200,
+    id: 'm6', no: '06', title: '사다리 구조 — 발코니 요구조자', dispatch: true, trucks: { best: ['aerial'], ok: ['pump'], note: '2층 이상 발코니 고립 구조는 굴절사다리(바스켓)가 가장 안전합니다. 펌프차는 사다리로 대체할 수 있습니다.' }, site: 'siteA', par: 200,
     summary: '소방차에서 사다리를 꺼내 건물 벽에 설치하고, 2층 발코니에 고립된 요구조자를 업고 안전하게 내려옵니다.',
     goal: '사다리 설치 각도(약 75°) · 3점 지지 · 요구조자 확보와 하강',
     call: ['[출동 지령] 연립주택 2층 화재, 발코니에 연기를 피해 나온 거주자 1명이 구조를 요청 중.', '내부 진입이 어렵습니다. 사다리를 이용한 외부 구조 바람.', '사다리 설치 후 하단 확보, 오를 때는 반드시 3점 지지를 유지할 것.'],
@@ -72,7 +64,7 @@ export const MISSIONS = [
     create: (G, d) => new LadderRescueMission(G, d),
   },
   {
-    id: 'm7', no: '07', title: '로프 구조(레펠) — 옥상 요구조자', dispatch: true, site: 'siteB', par: 260,
+    id: 'm7', no: '07', title: '로프 구조(레펠) — 옥상 요구조자', dispatch: true, trucks: { best: ['aerial'], ok: ['pump'], note: '옥상·고층 고립 구조에는 고가굴절차가 적합합니다.' }, site: 'siteB', par: 260,
     summary: '로프로 5층 옥상까지 올라 요구조자를 확보하고, 하강 전 3단계 점검 후 화염을 피해 로프로 내려옵니다.',
     goal: '로프 등반·하강 · 하강 전 점검(앵커·하네스·하강기) · 열원 회피',
     call: ['[출동 지령] 5층 아파트 화재로 계단이 연기로 막혀, 옥상에 요구조자 1명이 고립됨.', '옥상 앵커에 로프가 고정되었습니다(선발대). 로프로 옥상에 진입해 구조 바람.', '하강 경로의 창문에서 화염 분출 중 — 열원을 피해 하강할 것.'],
@@ -81,7 +73,7 @@ export const MISSIONS = [
     create: (G, d) => new RappelMission(G, d),
   },
   {
-    id: 'm8', no: '08', title: '터널 화재 — 어둠 속 진압·구조', dispatch: true, site: 'siteT', par: 260,
+    id: 'm8', no: '08', title: '터널 화재 — 어둠 속 진압·구조', dispatch: true, trucks: { best: ['pump', 'cannon'], ok: [], note: '터널 내 차량 화재는 호스 전개(펌프차)나 대용량 방수(방수포차)가 필요합니다.' }, site: 'siteT', par: 260,
     summary: '정전된 어두운 터널 안 차량 화재. 헬멧 랜턴으로 시야를 확보해 4곳을 진압하고 2명을 구조합니다. 천장 낙하물에 주의!',
     goal: '헬멧 조명 활용 · 터널 화재 대응 · 낙하물 회피 · 인명구조',
     call: ['[출동 지령] 119 안전터널 내 다중 추돌 차량 화재, 정전 및 연기 가득.', '요구조자 2명 확인. 지원 소방차 입구 대기 중 — 호스를 전개하고 진입 바람.', '고열에 의한 콘크리트 박리·낙하 위험 — 경고에 유의할 것.'],
@@ -90,7 +82,7 @@ export const MISSIONS = [
     create: (G, d) => new TunnelMission(G, d),
   },
   {
-    id: 'm9', no: '09', title: '말벌집 제거 — 퇴치 스프레이와 사다리', dispatch: true, site: 'siteC', par: 240,
+    id: 'm9', no: '09', title: '말벌집 제거 — 퇴치 스프레이와 사다리', dispatch: true, trucks: { best: ['aerial'], ok: ['pump'], note: '높은 곳의 벌집 제거에는 고가굴절차가 가장 안전합니다.' }, site: 'siteC', par: 240,
     summary: '벌집에 접근하면 달려드는 말벌을 퇴치 스프레이로 모두 제압한 뒤, 사다리를 설치해 벌집을 제거합니다.',
     goal: '말벌 대응 · 보호장비 · 사다리 안전수칙 · 벌집 제거 절차',
     call: ['[출동 지령] 상가 건물 외벽 2층 높이에 말벌집, 주민 쏘임 우려로 제거 요청.', '말벌이 공격적으로 달려듭니다. 퇴치 스프레이로 제압 후 사다리로 접근해 제거 바람.'],
@@ -99,13 +91,33 @@ export const MISSIONS = [
     create: (G, d) => new WaspMission(G, d),
   },
   {
-    id: 'm10', no: '10', title: '소방시설 점검 — 예방 점검 출동', dispatch: true, site: 'siteC', par: 260,
+    id: 'm10', no: '10', title: '소방시설 점검 — 예방 점검 출동', dispatch: true, trucks: { best: ['pump'], ok: [], note: '예방 점검은 점검 장비를 싣고 출동하는 일반 소방차(펌프차)면 충분합니다.' }, site: 'siteC', par: 260,
     summary: '상가 건물의 자동화재탐지설비(감지기·수신기)와 소화기 비치·상태(압력·안전핀·내용연수)를 점검하고 결과를 기록합니다.',
     goal: '자동화재탐지설비 작동시험 · 소화기 비치/내용연수 확인 · 점검 결과 기록',
     call: ['[예방 점검 출동] 관내 상가 건물의 정기 소방시설 점검 일정입니다.', '자동화재탐지설비(감지기·수신기)와 소화기 4대의 상태를 점검하고, 불량 사항을 기록해 관계인에게 통보할 것.'],
     objectives: ['감지기 4개 작동시험 (E 길게)', '수신기 상태 확인 및 조치', '소화기 4대의 제조연월·압력계·안전핀 점검 후 적합/부적합 판정', '점검 결과 기록부 제출'],
     tip: '소화기마다 제조연도, 압력계(녹색이 정상), 안전핀·봉인을 확인하세요. 분말소화기 내용연수는 10년입니다. 판정이 틀리면 감점됩니다.',
     create: (G, d) => new InspectionMission(G, d),
+  },
+  {
+    id: 'm11', no: '11', title: '고층 화재 — 탈출구 차단, 완강기 탈출', dispatch: true, site: 'siteD', par: 240,
+    trucks: { best: ['aerial'], ok: ['pump'], note: '고층 화재는 고가굴절차를 우선 배치하고, 건물 내 피난기구(완강기) 사용법을 익혀 두어야 합니다.' },
+    summary: '3~10층 오피스텔 화재 진압 중 연기와 화염으로 출입구가 막혔습니다. 완강기를 지지대에 설치하고 벨트를 착용해 안전하게 탈출합니다.',
+    goal: '피난기구(완강기) 사용 순서 · 설치 가능 층(3~10층) · 탈출구 차단 시 대응',
+    call: ['[긴급] 중앙 오피스텔 화재 진압 중 대원 1명이 고립 — 계단 출입구가 화염으로 차단됨.', '출입구는 사용할 수 없습니다. 창가의 피난기구(완강기)를 이용해 탈출 바랍니다.', '층수는 출동 때마다 달라집니다. 하강 전 고정·벨트 착용을 꼭 확인할 것.'],
+    objectives: ['출입구(문) 상태 확인 — 탈출 불가 판단', '완강기 보관함을 열어 장비 꺼내기', '지지대(고정 브래킷)에 완강기 후크 고정', '로프 릴을 창밖으로 던져 내리기', '안전벨트를 가슴 부위에 단단히 착용', '창틀에 올라 하강 → 지상에서 벨트 해제 후 보고'],
+    tip: '순서를 지키세요: ① 보관함 → ② 지지대 고정 → ③ 로프 투하 → ④ 벨트 착용 → ⑤ 하강. 순서가 틀리면 감점됩니다. 하강 중에는 속도조절기가 자동으로 속도를 조절하므로 로프를 잡지 않습니다.',
+    create: (G, d) => new EscapeMission(G, d),
+  },
+  {
+    id: 'm12', no: '12', title: '지하주차장 화재 — 송수구 급수 · 제연 · 진압', dispatch: true, site: 'siteE', par: 330,
+    trucks: { best: ['pump'], ok: ['cannon'], note: '송수구 급수와 호스 전개는 펌프차의 기본 임무입니다. 고가굴절차는 지하주차장 화재에 쓸 일이 거의 없습니다.' },
+    summary: '화재 발생 약 10분 후, 지하주차장 스프링클러가 작동 중입니다. 소방차로 송수구에 급수하고 제연·배연설비를 가동한 뒤 잔불을 진압합니다.',
+    goal: '송수구(스프링클러) 급수 · 제연·배연설비 활용 · 소화전 급수 연계 · 지하 화재 진입',
+    call: ['[출동 지령] 푸른마을 아파트 지하주차장 차량 화재, 신고 후 약 10분 경과 — 스프링클러 작동 중, 연기 다량.', '건물 외벽 스프링클러 송수구로 소방차 송수를 개시하고, 제연·배연설비를 가동해 진입 경로를 확보할 것.', '지하 잔불은 호스와 소화기로 진압. 스프링클러 급수가 끊기지 않도록 수량을 감시할 것.'],
+    objectives: ['소방차에서 송수 호스를 꺼내 송수구에 연결', '소방차 펌프를 가압해 스프링클러 송수 개시', '지하주차장 진입 · 제연설비 · 배연설비 가동', '소방차 수조 수량 감시 — 소화전에서 급수 연계', '남은 화점(차량 3대)을 진압하고 지휘관에게 보고'],
+    tip: '송수구는 건물 외벽(빨강·파랑 표시)에 있습니다. 호스를 연결한 뒤 소방차 펌프 패널(E)에서 송수를 개시하세요. 수조 수량이 줄면 소화전에 연결해 보충해야 스프링클러가 계속 작동합니다. 지하는 연기가 짙으니 낮은 자세(C)와 열화상(T)을 쓰세요.',
+    create: (G, d) => new GarageMission(G, d),
   },
 ];
 

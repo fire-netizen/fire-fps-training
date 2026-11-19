@@ -25,28 +25,16 @@ export class CameraRig {
     this._want = new THREE.Vector3();
     this._tc = new THREE.Vector3();
     this._snap = true;
-    this.mode = 'third';
-    try { this.mode = localStorage.getItem('fire-hero-view') === 'first' ? 'first' : 'third'; } catch {}
-    this.firstPerson = false;
   }
 
   snap() { this._snap = true; }
-
-  toggle() {
-    this.mode = this.mode === 'first' ? 'third' : 'first';
-    this.pitchBack = null;
-    this.pitch = this.mode === 'first' ? .06 : DEFAULT_PITCH;
-    this.snap();
-    try { localStorage.setItem('fire-hero-view', this.mode); } catch {}
-    return this.mode;
-  }
 
   // opts.spray: 소화약제 분사 중(어깨 너머 시점 · 조준은 스틱) / opts.aimIn: {yaw, pitch} 변화량(스틱)
   update(dt, player, input, { aiming = false, free = true, spray = false, aimYaw = 0, aimPitch = 0 } = {}) {
     let dragged = false;
     if (free && input && (input.dx || input.dy)) {
       this.yaw -= input.dx * 0.0026;
-      this.pitch = clamp(this.pitch + input.dy * 0.0021, this.mode === 'first' ? -1.35 : -0.75, this.mode === 'first' ? 1.35 : 1.05);
+      this.pitch = clamp(this.pitch + input.dy * 0.0021, -0.75, 1.05); // 놓아도 원래 각도로 되돌아가지 않음
       dragged = true;
     }
     if (spray && free) { // 이동 스틱으로 조준(좌우·상하)
@@ -62,27 +50,6 @@ export class CameraRig {
     }
     const cp = Math.cos(this.pitch), sp = Math.sin(this.pitch);
     this.dir.set(Math.sin(this.yaw) * cp, -sp, Math.cos(this.yaw) * cp);
-    // Scripted climbing/driving uses an exterior camera; the chosen walking view is retained.
-    this.firstPerson = this.mode === 'first' && !player.control;
-    document.body.classList.toggle('first-person', this.firstPerson);
-    if (!player.control) player.root.visible = !this.firstPerson;
-    else player.root.visible = !player.control.truck;
-    const viewButton = document.getElementById('viewToggle');
-    if (viewButton) {
-      viewButton.textContent = player.control ? '외부 시점 · 조작 중' : this.firstPerson ? '1인칭 · V 전환' : '3인칭 · V 전환';
-      viewButton.setAttribute('aria-pressed', String(this.mode === 'first'));
-    }
-    if (this.firstPerson) {
-      // Direct eye position avoids follow-camera lag and head/body clipping near equipment.
-      this.pos.set(player.pos.x, player.pos.y + 1.64 - .55 * player.human.cr, player.pos.z);
-      const camera = this.engine.camera;
-      camera.position.copy(this.pos);
-      camera.lookAt(this.pos.clone().add(this.dir));
-      this.fov = damp(this.fov, aiming ? 55 : 68, 10, dt);
-      if (dt === 0) this.fov = aiming ? 55 : 68;
-      if (Math.abs(camera.fov - this.fov) > .05) { camera.fov = this.fov; camera.updateProjectionMatrix(); }
-      return;
-    }
     const right = this._d.set(-Math.cos(this.yaw), 0, Math.sin(this.yaw));
 
     // 추적점: 앞뒤·좌우는 늦게, 높이는 더 천천히
@@ -125,7 +92,7 @@ export class CameraRig {
 export class Player {
   constructor(G) {
     this.G = G;
-    this.human = new Human({ skin: '#c99472', hair: '#1b1511', detailed: true });
+    this.human = new Human({ skin: '#c99472', hair: '#1b1511' });
     this.root = this.human.root;
     G.engine.scene.add(this.root);
     this.pos = this.root.position;

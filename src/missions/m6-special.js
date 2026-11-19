@@ -41,7 +41,7 @@ function makeStretcher() {
 }
 
 // 공통 기반: 사다리·요구조자 인계 등 반복되는 동작
-class FieldMission extends Mission {
+export class FieldMission extends Mission {
   constructor(G, def) {
     super(G, def);
     this.rings = [];

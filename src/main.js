@@ -1,7 +1,6 @@
 // 119 FIRE HERO — 소방관 미션 RPG (메인 게임 루프)
 import * as THREE from 'three';
 import './style.css';
-import './ui/alarm-lab.css';
 import { Engine } from './core/engine.js';
 import { Input } from './core/input.js';
 import { Sfx } from './core/audio.js';
@@ -11,6 +10,7 @@ import { Player, CameraRig } from './core/player.js';
 import { UI } from './ui/ui.js';
 import { Progress } from './data/progress.js';
 import { MISSIONS, missionById } from './missions/index.js';
+import { TRUCK_TYPES } from './world/props.js';
 import { TruckDriver } from './core/vehicle.js';
 import { Human } from './character/human.js';
 import { clamp, lerp, shuffle } from './core/util.js';
@@ -99,6 +99,7 @@ class Game {
     const W = this.world, P = this.player;
     W.showZone('outdoor');
     this.fx.clearAll();
+    W.setTruckType('pump');
     W.placeTruck(LAYOUT.truckHome[0], LAYOUT.truckHome[1]);
     P.root.visible = true;
     P.setGear(this.progress.gearDone ? { ...FULL_GEAR } : {});
@@ -134,6 +135,32 @@ class Game {
     this.driver = new TruckDriver(this, { siren: false });
     this.driver.start();
     this.ui.setObjectives('소방차 운전', [{ text: 'W/S 가속·후진 · A/D 조향 · Space 브레이크 · R 사이렌', active: true }, { text: '정차 후 E 키로 내리기', active: false }]);
+  }
+
+  // 출동 전 소방차 선택: 상황에 맞는 차량을 고른다 (적합도는 임무 정의의 trucks 에 기록)
+  async chooseTruck(def) {
+    const rate = (id) => { const t = def.trucks || {}; return (t.best || []).includes(id) ? 'best' : (t.ok || []).includes(id) ? 'ok' : 'poor'; };
+    this.state = 'modal';
+    const cards = Object.values(TRUCK_TYPES).map((t) => `<div class="tk"><b>${t.icon} ${t.name}</b><p>${t.desc}</p><small>주 용도: ${t.use}</small></div>`).join('');
+    const id = await this.ui.ask(`<div class="brief"><div class="eyebrow">출동 차량 선택</div><h2>${def.title}</h2>
+      <p class="sub">현장 상황: ${def.summary}</p>
+      <style>.tk{border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:8px 12px;margin:7px 0;text-align:left}.tk p{margin:3px 0;font-size:13px;opacity:.92}.tk small{opacity:.7}</style>
+      ${cards}<p class="sub">현장 상황에 가장 알맞은 소방차를 선택해 출동하세요.</p></div>`,
+      Object.values(TRUCK_TYPES).map((t) => ({ label: `${t.icon} ${t.short}`, value: t.id })));
+    this.ui.close();
+    const r = rate(id);
+    this.truckChoice = { id, rate: r, name: TRUCK_TYPES[id].name };
+    return id;
+  }
+
+  // 선택 결과 평가: 부적합 차량은 감점, 적합은 안내
+  applyTruckChoice(m, def) {
+    const c = this.truckChoice;
+    if (!c || !def.dispatch) return;
+    const note = (def.trucks && def.trucks.note) || '';
+    if (c.rate === 'best') { this.ui.toast(`✔ ${c.name} — 이 상황에 가장 적합한 차량입니다`, 'good'); }
+    else if (c.rate === 'ok') { this.ui.toast(`△ ${c.name} — 사용은 가능하지만 최적은 아닙니다. ${note}`, 'info'); m.mistake(`출동 차량 선택: ${c.name}은(는) 최적이 아님 — ${note}`, 30); }
+    else { this.ui.toast(`✖ ${c.name} — 이 상황에 부적합한 차량입니다. ${note}`, 'bad'); m.mistake(`출동 차량 선택: ${c.name}은(는) 부적합 — ${note}`, 80); }
   }
 
   // 출동: 플레이어가 소방차를 직접 운전해 현장까지 간다 (G / ⏩ 버튼: 자동 출동)
@@ -199,13 +226,6 @@ class Game {
     this.input.lock();
   }
 
-  toggleView() {
-    if (this.state !== 'play' || this.resolving) return;
-    if (this.player.control) { this.ui.toast('운전·사다리·로프 조작이 끝나면 선택한 시점으로 돌아옵니다', 'info'); return; }
-    const mode = this.camRig.toggle();
-    this.ui.toast(mode === 'first' ? '1인칭 · 가까이 관찰하고 E로 조작하세요' : '3인칭 · 대원과 주변 공간을 함께 확인하세요', 'info');
-  }
-
   // ───────────── 흐름 ─────────────
   async boot() {
     this.engine.setZone('outdoor');
@@ -215,14 +235,13 @@ class Game {
     let saved = new Progress();
     const has = Progress.hasSave() && saved.load();
     const r = await this.ui.title(has, has ? saved.name : '김소방');
-    if (r.mode === 'continue' || r.mode === 'lab' && has) { this.progress.load(); } else { this.progress.reset(r.name); }
+    if (r.mode === 'continue') { this.progress.load(); } else { this.progress.reset(r.name); }
     this.progress.name = r.name; this.progress.save();
     this.ui.close();
     await this.ui.fade(true, 200);
     await this.enterHub();
     this.ui.show(true);
     await this.ui.fade(false, 700);
-    if (r.mode === 'lab') { await this.startMission('m11'); return; }
     await this.ui.talk('김 팀장 (소방위)', [`${this.progress.name} 대원! 자네가 오늘 배치된 신임 소방사로군.`, '여기는 119 안전센터. 출동 지령이 떨어지면 소방차에 올라 화재 현장으로 향한다.', '화면 앞의 출동 상황판(E)에서 임무를 선택하게. 처음에는 보호장비 착용부터다.']);
     this.ui.close();
     if (IS_TOUCH) this.ui.toast('왼쪽 화면 드래그: 이동 · 오른쪽 화면 드래그: 시점 · E 버튼: 상호작용', 'info');
@@ -231,7 +250,7 @@ class Game {
 
   async startMission(id, { skipBrief = false } = {}) {
     const def = missionById(id);
-    if (this.progress.hp < 1 && id !== 'm11') {
+    if (this.progress.hp < 1) {
       this.state = 'modal';
       await this.ui.ask('<div class="talk"><div class="who">기력 고갈</div><p>기력이 0이라 시나리오를 수행할 수 없습니다.</p><p>마을 북쪽의 「소방이네 고깃집」에서 식사를 하고 기력을 회복하세요.</p></div>', [{ label: '확인', primary: true, value: true }]);
       this.ui.close(); this.resume(); return;
@@ -242,6 +261,11 @@ class Game {
       this.ui.close();
       if (!ok) { this.resume(); return; }
     }
+    if (def.dispatch && !(skipBrief && this.truckChoice && this.truckChoice.mid === id)) {
+      const tid = await this.chooseTruck(def);
+      this.truckChoice.mid = id;
+      this.world.setTruckType(tid);
+    } else if (!def.dispatch) this.truckChoice = null;
     this.state = 'trans';
     this.input.active = false;
     await this.ui.fade(true, 500);
@@ -264,6 +288,7 @@ class Game {
     this.input.active = true;
     this.input.lock();
     this.ui.banner(def.title, 2600);
+    this.applyTruckChoice(m, def);
   }
 
   // 출동 연출: 소방차가 소방서에서 현장까지 사이렌을 울리며 이동
@@ -377,11 +402,7 @@ class Game {
     if (!this.mission && this.driveTarget && this.state === 'play') t = { pos: new THREE.Vector3(this.driveTarget.pos.x, 4, this.driveTarget.pos.z), label: this.driveTarget.label };
     if (!t || this.state !== 'play') { this.ui.setMarker(null); return; }
     const v = this.tmp.copy(t.pos).project(this.engine.camera);
-    if (v.z > 1) {
-      if (this.mission?.training) this.ui.setMarker(innerWidth / 2, innerHeight - 120, '뒤쪽 · ' + t.label, t.pos.distanceTo(this.player.pos));
-      else this.ui.setMarker(null);
-      return;
-    }
+    if (v.z > 1) { this.ui.setMarker(null); return; }
     const W = innerWidth, H = innerHeight;
     const x = clamp((v.x * 0.5 + 0.5) * W, 40, W - 40), y = clamp((-v.y * 0.5 + 0.5) * H, 60, H - 70);
     const d = t.pos.distanceTo(this.player.pos);
@@ -418,7 +439,6 @@ class Game {
       if (c.t >= c.dur && !c.finished) { c.finished = true; c.done(); }
     } else if (this.state === 'play') {
       P.update(dt);
-      if (inp.pressed('KeyV')) this.toggleView();
       this.camRig.update(dt, P, inp, { aiming: P.aiming, spray: !!P.spray, aimYaw: P.aimCmd ? P.aimCmd.yaw : 0, aimPitch: P.aimCmd ? P.aimCmd.pitch : 0 });
       if (this.shake > 0) { const k = this.shake; cam.position.x += (Math.random() - 0.5) * k * 0.6; cam.position.y += (Math.random() - 0.5) * k * 0.6; cam.position.z += (Math.random() - 0.5) * k * 0.6; this.shake = Math.max(0, this.shake - dt * 1.8); }
       this.mission && this.mission.tick(dt);

@@ -10,6 +10,7 @@ export class Climb {
     this.s = o.s ?? 0;
     this.speed = o.speed ?? 1.5;
     this.face = o.face ?? Math.PI; // 벽을 바라보는 방향(yaw)
+    this.auto = o.auto || 0; // 완강기처럼 속도조절기가 자동으로 내려주는 하강(키 입력 불필요)
     this.lat = o.lat || 0; // 좌우 이동 허용 폭
     this.x0 = o.A.x; this.dx = 0;
     this.onTop = o.onTop; this.onBottom = o.onBottom; this.onTick = o.onTick;
@@ -39,7 +40,7 @@ export class Climb {
 
   update(dt) {
     const G = this.G, P = G.player, inp = G.input, st = inp.stick;
-    const v = st.analog ? -st.y : (inp.isDown('KeyW') || inp.isDown('ArrowUp') ? 1 : 0) - (inp.isDown('KeyS') || inp.isDown('ArrowDown') ? 1 : 0);
+    const v = this.auto ? -1 : st.analog ? -st.y : (inp.isDown('KeyW') || inp.isDown('ArrowUp') ? 1 : 0) - (inp.isDown('KeyS') || inp.isDown('ArrowDown') ? 1 : 0);
     const h = st.analog ? st.x : (inp.isDown('KeyD') ? 1 : 0) - (inp.isDown('KeyA') ? 1 : 0);
     const k = clamp(v, -1, 1);
     this._moving = Math.abs(k);

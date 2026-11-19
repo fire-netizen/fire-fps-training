@@ -15,7 +15,6 @@ export class UI {
       <div class="fx" id="fxSmoke"></div>
       <div class="fx" id="fxTic"><div class="tic-frame"><span>TIC · 열화상</span><span id="ticTemp">--°C</span></div></div>
       <div id="hud" class="hidden">
-        <button id="viewToggle" type="button" aria-label="1인칭·3인칭 시점 전환" aria-pressed="false">3인칭 · V 전환</button>
         <div class="card" id="pcard">
           <div class="who"><div class="badge" id="rankBadge">사</div>
             <div><div class="pname" id="pname">-</div><div class="prank"><span id="prank">소방사</span> · Lv.<b id="plv">1</b></div></div></div>
@@ -50,7 +49,6 @@ export class UI {
     this.modal = $('modal');
     this.fadeEl = $('fade');
     this.last = {};
-    $('viewToggle').addEventListener('click', () => this.G.toggleView());
     addEventListener('resize', () => this.fit());
     addEventListener('orientationchange', () => setTimeout(() => this.fit(), 250));
   }
@@ -253,18 +251,16 @@ export class UI {
           <div class="btns">
             ${hasSave ? '<button class="btn primary" id="bCont">이어하기</button>' : ''}
             <button class="btn ${hasSave ? '' : 'primary'}" id="bNew">${hasSave ? '새로 시작' : '훈련 시작'}</button>
-            <button class="btn lab-launch" id="bLab">NEW · 경보설비 실습실 체험</button>
           </div>
           <div class="keys-help">
             <div><kbd>W A S D</kbd> 이동 · <kbd>Shift</kbd> 달리기 · <kbd>C</kbd> 자세 낮춤</div>
             <div>마우스 시점 · <kbd>클릭</kbd>/<kbd>Space</kbd> 방수·분사 · <kbd>Q</kbd> 직사/분무 · <kbd>E</kbd> 상호작용</div>
-            <div><kbd>V</kbd> 1·3인칭 전환 · <kbd>1</kbd> 관창 · <kbd>2</kbd> 소화기 · <kbd>T</kbd> 열화상 · <kbd>M</kbd> 소리 · <kbd>Esc</kbd> 일시정지</div>
+            <div><kbd>1</kbd> 관창 · <kbd>2</kbd> 소화기 · <kbd>T</kbd> 열화상 · <kbd>M</kbd> 소리 · <kbd>Esc</kbd> 일시정지</div>
           </div>
         </div>`, 'title-bg');
       this.modal.insertAdjacentHTML('beforeend', `<div class="ver">${APP_VERSION}</div>`);
       const nm = () => ($('nameIn').value.trim() || '김소방').slice(0, 10);
       $('bNew').onclick = () => { this.G.sfx.init(); resolve({ mode: 'new', name: nm() }); };
-      $('bLab').onclick = () => { this.G.sfx.init(); resolve({ mode: 'lab', name: nm() }); };
       const c = $('bCont');
       if (c) c.onclick = () => { this.G.sfx.init(); resolve({ mode: 'continue', name: nm() }); };
     });
@@ -274,7 +270,7 @@ export class UI {
     return new Promise((resolve) => {
       const rows = missions.map((m) => {
         const rec = pr.missions[m.id] || {};
-        const locked = m.id !== 'm1' && m.id !== 'm11' && !pr.gearDone;
+        const locked = m.id !== 'm1' && !pr.gearDone;
         const stars = '★'.repeat(rec.stars || 0) + '☆'.repeat(3 - (rec.stars || 0));
         return `<button class="mrow ${locked ? 'locked' : ''}" data-id="${m.id}" ${locked ? 'disabled' : ''}>
           <div class="mn">${esc(m.no)}</div>
