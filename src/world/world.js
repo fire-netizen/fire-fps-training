@@ -6,6 +6,7 @@ import {
 } from './textures.js';
 import { add, makeBarrier, makeCar, makeCone, makeFireTruck, makeHydrant, makeLamp, makeTree, PROPS_MAT as PM, rbox, std } from './props.js';
 import { buildDiner, buildHospital, buildRestaurant } from './town.js';
+import { buildLandmarks, landmarkSpan } from './landmarks.js';
 import { canvasTexture, clamp, rand } from '../core/util.js';
 
 export const LAYOUT = {
@@ -505,11 +506,13 @@ export class World {
   buildCity() {
     const g = this.out;
     const walls = ['#a99f92', '#8f9aa0', '#b7a791', '#9aa08f', '#b09a94', '#c0bbb0'];
+    const spanS = landmarkSpan('S'), spanN = landmarkSpan('N'); // 새 랜드마크 건물과 겹치는 배경 건물은 만들지 않음
+    const clash = (span, x0, x1) => span.some(([a, b]) => x1 > a && x0 < b);
     let x = -150;
     let i = 0;
     while (x < 450) {
       const w = rand(16, 30), d = rand(14, 22), floors = 3 + ((i * 7) % 7);
-      this.building({ x: x + w / 2, z: 34 + d / 2 + rand(0, 6), w, d, floors, floorH: 3.4, wall: walls[i % walls.length], variant: i % 3 === 0 ? 1 : 0 });
+      if (!clash(spanS, x, x + w)) this.building({ x: x + w / 2, z: 34 + d / 2 + rand(0, 6), w, d, floors, floorH: 3.4, wall: walls[i % walls.length], variant: i % 3 === 0 ? 1 : 0 });
       x += w + rand(3, 8);
       i++;
     }
@@ -517,11 +520,12 @@ export class World {
     while (x < 450) {
       const w = rand(18, 32), d = rand(14, 22), floors = 4 + ((i * 5) % 9);
       const cx = x + w / 2;
-      const skip = (cx > -128 && cx < -70) || (cx > 38 && cx < 86) || (cx > 150 && cx < 194) || (cx > 262 && cx < 292);
+      const skip = (cx > -128 && cx < -70) || (cx > 38 && cx < 86) || (cx > 150 && cx < 194) || (cx > 262 && cx < 292) || clash(spanN, x, x + w);
       if (!skip) this.building({ x: cx, z: -62 - d / 2, w, d, floors, floorH: 3.4, wall: walls[(i + 2) % walls.length], variant: i % 2 });
       x += w + rand(3, 7);
       i++;
     }
+    buildLandmarks(this);
   }
 
   // 소방차 종류 교체 (pump | cannon | aerial) — 같은 그룹(위치·방향·참조)을 유지하고 차체 모델만 바꿈

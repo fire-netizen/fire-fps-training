@@ -30,6 +30,7 @@ export class TouchControls {
         <button class="t-btn t-sm t-lamp hidden" data-act="lamp">🔦<small>랜턴</small></button>
         <button class="t-btn t-sm t-jump" data-act="jump">⤒<small>점프</small></button>
         <button class="t-btn t-sm" data-act="crouch">⬇<small>자세</small></button>
+        <button class="t-btn t-sm t-view" data-act="view">👁<small>시점</small></button>
         <button class="t-btn t-e" data-act="use">E<small>상호작용</small></button>
         <button class="t-btn t-fire" data-act="fire">💧<small>방수</small></button>
       </div>`;
@@ -64,6 +65,7 @@ export class TouchControls {
     const tap = (el, fn) => el.addEventListener('pointerdown', (e) => { fn(); e.preventDefault(); });
     tap(this.$('[data-act="jump"]'), () => inp.hit.add('KeyF'));
     tap(this.$('[data-act="crouch"]'), () => inp.hit.add('KeyC'));
+    tap(this.$('[data-act="view"]'), () => inp.hit.add('KeyV'));
     this.hintBtn = this.$('[data-act="hint"]');
     this.jumpBtn = this.$('[data-act="jump"]');
     this.lampBtn = this.$('[data-act="lamp"]');

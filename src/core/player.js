@@ -21,6 +21,7 @@ export class CameraRig {
     this.curDist = this.dist;
     this.shoulder = 0.45;
     this.pitchBack = null; // 분사 종료 후 되돌아갈 시점
+    this.fp = false; // 1인칭 시점 (V 키 / 터치 시점 버튼으로 전환)
     this._d = new THREE.Vector3();
     this._want = new THREE.Vector3();
     this._tc = new THREE.Vector3();
@@ -28,6 +29,14 @@ export class CameraRig {
   }
 
   snap() { this._snap = true; }
+
+  // 3인칭 ↔ 1인칭 전환
+  toggleFp() {
+    this.fp = !this.fp; this._snap = true;
+    if (this.fp) { this._p3 = this.pitch; this.pitch = 0.04; } // 1인칭은 정면(수평)을 바라보며 시작
+    else { this.pitch = this._p3 ?? DEFAULT_PITCH; this.pitchBack = null; }
+    return this.fp;
+  }
 
   // opts.spray: 소화약제 분사 중(어깨 너머 시점 · 조준은 스틱) / opts.aimIn: {yaw, pitch} 변화량(스틱)
   update(dt, player, input, { aiming = false, free = true, spray = false, aimYaw = 0, aimPitch = 0 } = {}) {
@@ -52,6 +61,24 @@ export class CameraRig {
     this.dir.set(Math.sin(this.yaw) * cp, -sp, Math.cos(this.yaw) * cp);
     const right = this._d.set(-Math.cos(this.yaw), 0, Math.sin(this.yaw));
 
+    // ── 1인칭: 눈높이에서 바라봄 (머리·모자는 숨기고 몸·팔·장비는 그대로 보임)
+    if (this.fp) {
+      const cr = player.human.cr || 0;
+      const eyeY = player.pos.y + 1.62 - 0.55 * cr;
+      const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
+      this.follow.set(player.pos.x, player.pos.y, player.pos.z); this._snap = false;
+      this.pos.set(player.pos.x + fx * 0.14, eyeY, player.pos.z + fz * 0.14);
+      this.curDist = this.dist;
+      const cam1 = this.engine.camera;
+      cam1.position.copy(this.pos);
+      cam1.lookAt(this.pos.x + this.dir.x, this.pos.y + this.dir.y, this.pos.z + this.dir.z);
+      const tf1 = aiming ? 62 : 72;
+      this.fov = damp(this.fov, tf1, 10, dt);
+      if (Math.abs(cam1.fov - this.fov) > 0.05) { cam1.fov = this.fov; cam1.updateProjectionMatrix(); }
+      player.human.setFirstPerson(true);
+      return;
+    }
+    player.human.setFirstPerson(false);
     // 추적점: 앞뒤·좌우는 늦게, 높이는 더 천천히
     const tx = player.pos.x, ty = player.pos.y, tz = player.pos.z;
     if (this._snap || dt === 0) { this.follow.set(tx, ty, tz); this._snap = false; }

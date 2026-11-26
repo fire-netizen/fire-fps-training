@@ -438,6 +438,7 @@ class Game {
       this.engine.follow(this.world.truck.position);
       if (c.t >= c.dur && !c.finished) { c.finished = true; c.done(); }
     } else if (this.state === 'play') {
+      if (inp.pressed('KeyV')) this.ui.toast(this.camRig.toggleFp() ? '1인칭 시점 (V: 3인칭으로 전환)' : '3인칭 시점 (V: 1인칭으로 전환)', 'info');
       P.update(dt);
       this.camRig.update(dt, P, inp, { aiming: P.aiming, spray: !!P.spray, aimYaw: P.aimCmd ? P.aimCmd.yaw : 0, aimPitch: P.aimCmd ? P.aimCmd.pitch : 0 });
       if (this.shake > 0) { const k = this.shake; cam.position.x += (Math.random() - 0.5) * k * 0.6; cam.position.y += (Math.random() - 0.5) * k * 0.6; cam.position.z += (Math.random() - 0.5) * k * 0.6; this.shake = Math.max(0, this.shake - dt * 1.8); }

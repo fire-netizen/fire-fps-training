@@ -469,6 +469,9 @@ export class Human {
     if (g.hood && !g.coat) this.baseG.shirt.forEach((o) => (o.visible = true));
   }
 
+  // 1인칭 시점: 카메라가 머리 안에 들어가므로 머리(헬멧·모자·두건 포함)를 숨김
+  setFirstPerson(v) { if (this.fpOn !== v) { this.fpOn = v; this.head.visible = !v; } }
+
   setTool(name) {
     this.tool = name;
     for (const k of Object.keys(this.tools)) this.tools[k].g.visible = k === name;

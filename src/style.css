@@ -130,6 +130,7 @@ html, body { overscroll-behavior: none; -webkit-user-select: none; user-select: 
 .t-sm { width: 52px; height: 52px; font-size: 15px; }
 .t-actions .t-sm { right: 86px; bottom: 112px; }
 .t-actions .t-jump { right: 86px; bottom: 172px; }
+.t-actions .t-view { right: 86px; bottom: 232px; }
 .t-actions .t-lamp { right: 214px; bottom: 6px; }
 .t-tools { position: absolute; right: 116px; bottom: 14px; width: 100px; display: flex; flex-wrap: wrap-reverse; gap: 6px; justify-content: flex-end; pointer-events: none; }
 .t-tools .t-btn { position: static; width: 46px; height: 46px; font-size: 14px; }
