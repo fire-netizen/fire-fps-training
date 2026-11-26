@@ -253,7 +253,7 @@ export class UI {
             <button class="btn ${hasSave ? '' : 'primary'}" id="bNew">${hasSave ? '새로 시작' : '훈련 시작'}</button>
           </div>
           <div class="keys-help">
-            <div><kbd>W A S D</kbd> 이동 · <kbd>Shift</kbd> 달리기 · <kbd>C</kbd> 자세 낮춤 · <kbd>V</kbd> 1인칭/3인칭</div>
+            <div><kbd>W A S D</kbd> 이동 · <kbd>Shift</kbd> 달리기 · <kbd>C</kbd> 자세 낮춤 · <kbd>V</kbd> 1인칭/3인칭 · <kbd>N</kbd> 길 안내 켜기/끄기</div>
             <div>마우스 시점 · <kbd>클릭</kbd>/<kbd>Space</kbd> 방수·분사 · <kbd>Q</kbd> 직사/분무 · <kbd>E</kbd> 상호작용</div>
             <div><kbd>1</kbd> 관창 · <kbd>2</kbd> 소화기 · <kbd>T</kbd> 열화상 · <kbd>M</kbd> 소리 · <kbd>Esc</kbd> 일시정지</div>
           </div>

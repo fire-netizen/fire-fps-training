@@ -167,5 +167,17 @@ export class InspectionMission extends Mission {
     setTimeout(() => this.finish(true), 900);
   }
 
+  // 길 안내 목적지: 다음에 해야 할 점검 대상
+  update() {
+    const I = this.I; if (!I || this.reported) { this.markerTarget = null; return; }
+    const V3 = (p, y, label) => ({ pos: new THREE.Vector3(p.x, y, p.z), label });
+    const d = this.det.find((x) => !x.tested);
+    if (d) { this.markerTarget = V3(d.pos, 2.9, `감지기 ${d.i + 1} 작동시험`); return; }
+    if (!this.panelDone) { this.markerTarget = V3(I.p(-6.6, 0, 7.6), 1.9, '수신기 확인'); return; }
+    const e = this.exts.find((x) => !x.judged);
+    if (e) { this.markerTarget = V3(e.mesh.position, 1.6, `소화기 ${e.i + 1} 점검`); return; }
+    this.markerTarget = V3(I.exit, 2.2, '점검 결과 제출 (출입구)');
+  }
+
   teardown() { if (this.hid && this.G.world.extStand) this.G.world.extStand.visible = true; }
 }

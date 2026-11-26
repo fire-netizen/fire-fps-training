@@ -31,6 +31,7 @@ export class TouchControls {
         <button class="t-btn t-sm t-jump" data-act="jump">⤒<small>점프</small></button>
         <button class="t-btn t-sm" data-act="crouch">⬇<small>자세</small></button>
         <button class="t-btn t-sm t-view" data-act="view">👁<small>시점</small></button>
+        <button class="t-btn t-sm t-nav" data-act="nav">🧭<small>길안내</small></button>
         <button class="t-btn t-e" data-act="use">E<small>상호작용</small></button>
         <button class="t-btn t-fire" data-act="fire">💧<small>방수</small></button>
       </div>`;
@@ -66,6 +67,7 @@ export class TouchControls {
     tap(this.$('[data-act="jump"]'), () => inp.hit.add('KeyF'));
     tap(this.$('[data-act="crouch"]'), () => inp.hit.add('KeyC'));
     tap(this.$('[data-act="view"]'), () => inp.hit.add('KeyV'));
+    tap(this.$('[data-act="nav"]'), () => inp.hit.add('KeyN'));
     this.hintBtn = this.$('[data-act="hint"]');
     this.jumpBtn = this.$('[data-act="jump"]');
     this.lampBtn = this.$('[data-act="lamp"]');

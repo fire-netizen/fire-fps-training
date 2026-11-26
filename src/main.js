@@ -17,6 +17,7 @@ import { clamp, lerp, shuffle } from './core/util.js';
 import { fmtTime } from './core/util.js';
 import { IS_TOUCH } from './core/device.js';
 import { Diner } from './world/diner.js';
+import { Guide } from './core/guide.js';
 import { Weather } from './world/weather.js';
 import { TouchControls } from './ui/touch.js';
 
@@ -42,6 +43,7 @@ class Game {
     this.cam = this.camRig;
     this.player = new Player(this);
     this.ui = new UI(this.root, this);
+    this.guide = new Guide(this); // 길 안내(녹색 화살표)
     this.holdT = 0;
     this.shake = 0;
     this.holdTarget = null;
@@ -396,10 +398,16 @@ class Game {
     }
   }
 
-  updateMarker() {
+  // 현재 퀘스트 목적지 (화면 표지와 길 안내 화살표가 같은 값을 씀)
+  currentMarker() {
     let t = this.mission ? this.mission.markerTarget : null;
     if (!this.mission && this.state === 'play') t = { pos: new THREE.Vector3(this.world.boardPos.x, 3.7, this.world.boardPos.z), label: '출동 상황판' };
     if (!this.mission && this.driveTarget && this.state === 'play') t = { pos: new THREE.Vector3(this.driveTarget.pos.x, 4, this.driveTarget.pos.z), label: this.driveTarget.label };
+    return t;
+  }
+
+  updateMarker() {
+    const t = this.currentMarker();
     if (!t || this.state !== 'play') { this.ui.setMarker(null); return; }
     const v = this.tmp.copy(t.pos).project(this.engine.camera);
     if (v.z > 1) { this.ui.setMarker(null); return; }
@@ -493,6 +501,8 @@ class Game {
       });
       this.updateMarker();
     }
+    if (this.state === 'play' && inp.pressed('KeyN')) this.guide.toggle();
+    this.guide.update(dt);
     inp.endFrame();
   }
 
