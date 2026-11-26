@@ -41,7 +41,7 @@ export class GarageMission extends FieldMission {
     this.takeB = V(tr.x - 5.6, 0, tr.z + 1.4);
     const cp = W.connPos;
     this.connPt = V(cp.x, 0.9, cp.z - 0.5);
-    this.hoseA = new HoseLine(scene); this.hoseB = new HoseLine(scene, '#d9d4c6');
+    this.hoseA = new HoseLine(scene, '#e0a41c', W); this.hoseB = new HoseLine(scene, '#d9d4c6', W);
     this.addProp(this.hoseA.mesh); this.addProp(this.hoseB.mesh);
 
     // 현장 인원: 기관원(펌프 조작) · 지휘관
@@ -153,7 +153,7 @@ export class GarageMission extends FieldMission {
     });
     this.addInteract({
       pos: this.captain.root.position, radius: 2.8, label: '지휘관에게 상황 종료 보고', hold: 1.0,
-      enabled: () => !this.inGarage && this.fires.length > 0 && this.fires.every((f) => !f.alive) && !this.reported,
+      enabled: () => !this.inGarage && this.fires.length > 0 && this.fires.every((f) => !f.alive && f.cooled) && !this.reported,
       onUse: () => {
         this.reported = true; this.complete('report'); G.ui.banner('상황 종료'); setTimeout(() => this.finish(true), 1500);
       },
@@ -163,7 +163,7 @@ export class GarageMission extends FieldMission {
     I.fireSpots.forEach((s, k) => {
       const ev = s.label.startsWith('전기차');
       const f = G.fx.addFire(s.pos, { size: ev ? 1.5 : 1.25, hp: ev ? 190 : 115, type: 'A', heat: 4.4, smoke: 0.8, label: s.label });
-      f.hidden = true; this.fires.push(f);
+      f.hidden = true; f.ev = ev; f.cooled = !ev; f.coolT = 0; f.idleT = 0; this.fires.push(f);
       G.fx.addSmokeSource(V(s.pos.x, 2.4, s.pos.z), 5, 2.6);
     });
     this.fires.forEach((f) => { f.hp = f.maxHp * 0.7; }); // 10분간 스프링클러로 어느 정도 약해진 상태
@@ -174,7 +174,7 @@ export class GarageMission extends FieldMission {
       .addObj('pump', '소방차 펌프를 가압해 송수를 개시한다', '건물 수조 36% ↓')
       .addObj('hydrant', '소화전에 연결해 소방차 급수원을 확보한다 (송수 지속)')
       .addObj('vent', '지하 진입(면체 착용) 후 제연설비·배연설비를 가동한다', '0/2')
-      .addObj('fires', '화점 3곳을 진압한다 (전기차는 다량의 물로 냉각)', '0/3')
+      .addObj('fires', '화점 3곳을 진압한다 (전기차는 불꽃이 꺼진 뒤에도 7초 이상 계속 냉각)', '0/3')
       .addObj('report', '지상으로 나와 지휘관에게 상황 종료 보고');
     this.setActive('take');
     G.ui.toast('발화 약 10분 경과 — 스프링클러가 작동 중입니다. 건물 수조가 줄고 있으니 서두르세요', 'warn');
@@ -196,10 +196,10 @@ export class GarageMission extends FieldMission {
     P.teleport(I.spawn, 0);
     P.allowed = { hose: true, ext: false, tic: true };
     P.hoseReady = true; P.tic = false; P.equip(null); P.mode = 'jet';
-    if (!this.hose) { this.hose = new HoseLine(G.engine.scene); this.addProp(this.hose.mesh); }
+    if (!this.hose) { this.hose = new HoseLine(G.engine.scene, '#e0a41c', G.world); this.addProp(this.hose.mesh); }
     this.hose.visible = true;
     P.tether = { pos: I.p(0, 0, 1.2), max: 40 };
-    this.hosePt = I.p(0, 0.9, -0.8);
+    this.hosePt = I.p(0, 0.9, 0.6); // 벽 안쪽(입구 안)에서 호스가 시작 — 벽을 뚫고 나오지 않도록
     G.camRig.dist = 3.3; G.camRig.pitch = 0.22;
     G.camRig.update(0, P, null, { free: false });
     G.ui.banner('⬇ 지하주차장 — 스프링클러 작동 중 · 연기 짙음', 2600);
@@ -280,14 +280,29 @@ export class GarageMission extends FieldMission {
     // ── 스프링클러가 화세를 누르거나(공급 중) 되살림(중단)
     for (const f of this.fires) {
       if (!f.alive) continue;
-      if (supply) f.hp = Math.max(f.maxHp * 0.42, f.hp - dt * 2.4);
+      // 스프링클러는 화세를 일정 수준(하한)까지만 누르며, 플레이어가 직접 낮춘 체력을 되돌리지 않는다
+      const floor = f.maxHp * (f.ev ? 0.5 : 0.42);
+      if (supply) { if (f.hp > floor) f.hp = Math.max(floor, f.hp - dt * 2.4); }
       else f.hp = Math.min(f.maxHp * 1.2, f.hp + dt * 3.2);
     }
     this.updateRain(dt, supply);
     if (I.fan) I.fan.rotation.z += dt * (this.exhaustOn ? 14 : 0);
 
-    const out = this.fires.filter((f) => !f.alive).length;
-    this.setCount('fires', `${out}/${this.fires.length}`);
+    // 전기차: 불꽃이 꺼진 뒤에도 배터리 냉각(7초 이상 계속 방수)이 필요하며, 방수를 멈추면 재발화한다
+    for (const f of this.fires) {
+      if (!f.ev || f.alive || f.cooled || !this.inGarage) continue;
+      const aimed = P.firing && P.aimPoint.distanceTo(f.pos) < 3.6;
+      if (aimed) { f.coolT += dt; f.idleT = 0; } else f.idleT += dt;
+      if (f.coolT >= 7) { f.cooled = true; G.ui.toast('전기차 배터리 냉각 완료 — 재발화 위험이 낮아졌습니다', 'good'); }
+      else if (f.idleT > 4) {
+        f.alive = true; f.hp = f.maxHp * 0.35; f.coolT = 0; f.idleT = 0; f.flare = 1.2;
+        G.ui.toast('⚠ 전기차 배터리가 재발화했습니다 — 꺼진 뒤에도 계속 냉각하세요', 'bad'); G.sfx.bad && G.sfx.bad();
+        this.mistake('전기차 배터리 냉각이 부족해 재발화했습니다', 15);
+      }
+    }
+    const out = this.fires.filter((f) => !f.alive && f.cooled).length;
+    const cool = this.fires.find((f) => f.ev && !f.alive && !f.cooled);
+    this.setCount('fires', `${out}/${this.fires.length}` + (cool ? ` · 배터리 냉각 ${Math.min(7, Math.floor(cool.coolT))}/7초` : ''));
     if (out === this.fires.length && !this.objs.find((o) => o.id === 'fires').done) {
       this.complete('fires'); G.ui.banner('화점 진압 완료 — 지상으로 복귀해 보고하세요'); this.cheer(2);
     }
@@ -323,7 +338,7 @@ export class GarageMission extends FieldMission {
       else t = { pos: V(I.exhaustPanel.pos.x, 2.6, I.exhaustPanel.pos.z), label: '배연설비' };
     } else if (id === 'fires') {
       if (!this.inGarage) t = { pos: V(W.garageDoor.x, 2.4, W.garageDoor.z), label: '지하주차장 진입' };
-      else { let bd = 1e9; for (const f of this.fires) if (f.alive) { const d = f.pos.distanceTo(P.pos); if (d < bd) { bd = d; t = { pos: V(f.pos.x, f.pos.y + 1.6, f.pos.z), label: f.label || '화점' }; } } }
+      else { let bd = 1e9; for (const f of this.fires) if (f.alive || (f.ev && !f.cooled)) { const d = f.pos.distanceTo(P.pos); if (d < bd) { bd = d; t = { pos: V(f.pos.x, f.pos.y + 1.6, f.pos.z), label: f.label || '화점' }; } } }
     } else if (id === 'report') {
       t = this.inGarage ? { pos: V(I.exit.x, 2.4, I.exit.z + 0.6), label: '출구 · 지상으로' } : { pos: V(this.captain.root.position.x, 2.6, this.captain.root.position.z), label: '지휘관 · 보고' };
     }

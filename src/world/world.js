@@ -869,6 +869,8 @@ export class World {
     // 소화전함(벽)
     const hyd = std('#c8281f', 0.5, 0.2);
     for (const z of [10, 36, 62]) this.box(grp, 0.3, 1.1, 0.9, wx(HW - 0.3), 1.2, wz(z), hyd, { cast: false });
+    // 진입구 뒤쪽이 열려 있어 맵 밖(허공)으로 걸어 나갈 수 있던 문제 — 출구 뒤에 보이지 않는 차단벽
+    this.solid(wx(0), H / 2, wz(-1.1), HW * 2 + 1.4, H, 0.6, 'exitblock', { water: false });
     I.p = (x, y, z) => new THREE.Vector3(wx(x), y, wz(z));
     I.spawn = I.p(0, 0, 3);
     I.exit = I.p(0, 0, 0.5);
@@ -933,7 +935,7 @@ export class World {
     burn.forEach(([x, z, label]) => {
       const c = makeCar('#222428'); c.position.set(wx(x), 0, wz(z)); c.rotation.y = Math.PI / 2;
       c.traverse((o) => { if (o.isMesh) o.castShadow = true; }); grp.add(c);
-      this.solid(wx(x), 0.9, wz(z), 1.9, 1.8, 4.5, 'car', { water: true });
+      this.solid(wx(x), 0.9, wz(z), 1.9, 1.8, 4.5, 'car', { water: false }); // 불붙은 차량: 물줄기가 차체(유리·하부)를 통해 화점에 닿도록 함
       I.fireSpots.push({ pos: I.p(x, 1.0, z), label });
     });
     // 제연설비 제어반 (서쪽 벽, 입구 근처)

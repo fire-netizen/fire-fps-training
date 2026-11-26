@@ -21,7 +21,7 @@ export class InspectionMission extends Mission {
     this.I = I;
     G.fx.clearAll();
     W.showZone('shop');
-    P.setGear({ pants: true, boots: true, coat: false, hood: false, helmet: true, gloves: true });
+    P.setGear({}); // 점검 업무: 주황 활동복 + 활동모 (방화복·헬멧 혼용 금지)
     P.setMask(false);
     P.resetStats(G.progress);
     P.allowed = { hose: false, ext: false, tic: false };
